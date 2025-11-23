@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import './App.css'
 import DashboardPage from './pages/dashboard'
 import PatientsPage from './pages/patients'
 import AppointmentsPage from './pages/appointments'
