@@ -1,160 +1,291 @@
-Gabay: A Smart Application for Locating Appropriate Hospitals and Doctors through AI-Driven Assistance
+# Gabay: AI-Powered Hospital & Doctor Locator (HIS 2.0 for the Philippines)
 
-Gabay is a next-generation Health Information System (HIS 2.0) designed to bridge the gap between patients and quality medical services in the Philippines. It addresses critical issues such as financial ambiguity, fragmentation of care, and unequal access to healthcare resources through a dual-module ecosystem.
+Gabay is a next-generation **Health Information System (HIS 2.0)** built to bridge the gap between Filipino patients and quality medical services. It addresses:
 
-📜 Table of Contents
+- **Financial ambiguity** (shock hospital bills)
+- **Fragmented care** (disconnected apps and hospital systems)
+- **Unequal access** to appropriate facilities and specialists
 
-About the Project
+Gabay does this through a **dual-module ecosystem**: a patient app and a hospital management core, connected by AI and real-time data.
 
-Problem Statement
+---
 
-The Solution
+## 📜 Table of Contents
 
-Key Features
+1. [About the Project](#-about-the-project)
+2. [Problem Statement](#-problem-statement)
+3. [The Solution](#-the-solution)
+4. [Key Features](#-key-features)
+   - [Gabay 1.0 – Patient App](#gabay-10--patient-app)
+   - [Gabay 2.0 – Hospital Core](#gabay-20--hospital-core)
+5. [Tech Stack](#-tech-stack)
+   - [Mobile Client (Gabay 1.0)](#mobile-client-gabay-10)
+   - [Backend & DevOps](#backend--devops)
+   - [AI & Data](#ai--data)
+6. [Getting Started](#-getting-started)
+   - [Prerequisites](#prerequisites)
+   - [Installation](#installation)
+   - [Environment Setup](#environment-setup)
+   - [Running the Apps](#running-the-apps)
+7. [The Team](#-the-team)
+8. [Acknowledgments](#-acknowledgments)
 
-Gabay 1.0 (Patient App)
+---
 
-Gabay 2.0 (Hospital Core)
+## 🧐 About the Project
 
-Tech Stack
+**Gabay** was submitted as an entry for the **PUP Hackathon: Uthack ang Puhunan**.
 
-Getting Started
+Unlike traditional hospital systems that focus only on administration, Gabay is **patient-first**:
 
-The Team
+- Uses **AI** and **geolocation** to guide users from first symptom to proper consultation.
+- Provides **real-time financial transparency** so patients can see their **actual out-of-pocket** costs.
+- Links patient tools and hospital operations into a **single, unified source of truth**.
 
-Acknowledgments
+---
 
-🧐 About the Project
+## ⚠️ Problem Statement
 
-Submitted as an entry for the PUP Hackathon: Uthack ang Puhunan, Gabay utilizes Artificial Intelligence and geolocation services to guide users from symptom onset to the best medical consultation. Unlike traditional systems that focus solely on hospital administration, Gabay prioritizes patient empowerment by providing real-time financial transparency and intelligent triage.
+The Philippine healthcare system faces a **“Crisis of Financial Ambiguity and Fragmentation”**:
 
-⚠️ Problem Statement
+1. **Financial Toxicity**
+   - Patients rarely know their **net balance** (after PhilHealth/HMO deductions) until discharge.
+   - This results in **“shock bills”** and financial distress.
 
-The Philippine healthcare system currently faces a "Crisis of Financial Ambiguity and Fragmentation":
+2. **Fragmented Navigation**
+   - Hospitals maintain internal ledgers.
+   - Patients use separate booking or health apps.
+   - There is **no unified, patient-visible ledger** or navigation layer.
 
-Financial Toxicity: Patients lack real-time visibility into their net balance (after PhilHealth/HMO deductions), leading to "shock bills" upon discharge.
+3. **Inefficient Triage**
+   - Little or no **pre-screening** of cases.
+   - **Specialized facilities** become overcrowded with cases suitable for **primary care**, straining resources.
 
-Fragmented Navigation: Existing systems operate in silos. Hospitals have ledgers, and patients have booking apps, but there is no unified source of truth.
+---
 
-Inefficient Triage: Lack of pre-screening leads to overcrowding in specialized facilities when primary care would suffice.
+## 💡 The Solution
 
-💡 The Solution
+Gabay introduces a **HIS 2.0 architecture** composed of two tightly integrated modules:
 
-Gabay proposes a HIS 2.0 architecture with two integrated modules:
+1. **Gabay 1.0 – Mobile Client (Patient App)**
+   - AI triage and navigation
+   - Real-time financial ledger
+   - Appointment booking and records vault
 
-Gabay 1.0 (Mobile Client): A patient-facing app for AI triage, navigation, and real-time financial tracking.
+2. **Gabay 2.0 – Web Admin (Hospital Core)**
+   - Hospital operations, queueing, and scheduling
+   - Insurance and billing logic
+   - Regulatory and claims automation
 
-Gabay 2.0 (Web Admin): A hospital management core that handles operations, insurance logic, and regulatory compliance.
+Together, they create a **closed feedback loop** between patient experience and hospital operations.
 
-🚀 Key Features
+---
 
-Gabay 1.0: Patient Empowerment Portal
+## 🚀 Key Features
 
-Target Platform: Mobile (iOS/Android)
+### Gabay 1.0 – Patient App
 
-🤖 AI-Powered Chatbot: Digital triage using Llama-3.1-8B to assess symptoms and suggest urgency levels (ER vs. Consult).
+**Target Platform:** Mobile (iOS / Android)
 
-📍 Geospatial Facility Matching: Suggests hospitals/doctors based on specialization match and proximity using MapLibre GL.
+- 🤖 **AI-Powered Chatbot**
+  - Uses **Llama-3.1-8B** for digital triage.
+  - Assesses symptoms and suggests **urgency level** (e.g., ER vs. outpatient consult).
 
-💰 Real-Time Patient Ledger: Displays the exact out-of-pocket balance after automatically calculating PhilHealth and HMO deductions.
+- 📍 **Geospatial Facility Matching**
+  - Recommends **hospitals and doctors** based on:
+    - Clinical specialization
+    - Proximity via **MapLibre GL**
 
-📂 Health Records Vault: Secure storage for lab results, prescriptions, and immunization history with privacy controls.
+- 💰 **Real-Time Patient Ledger**
+  - Shows **exact out-of-pocket balance** after:
+    - PhilHealth deductions
+    - HMO coverage
+  - Reduces risk of **unexpected bills**.
 
-📅 Smart Scheduling: Direct appointment booking synchronized with the hospital's internal calendar.
+- 📂 **Health Records Vault**
+  - Secure storage for:
+    - Lab results
+    - Prescriptions
+    - Immunization history
+  - With configurable **privacy controls**.
 
-💳 E-Payments: Integrated payment gateway for settling bills via credit card or e-wallets.
+- 📅 **Smart Scheduling**
+  - Direct appointment booking.
+  - Syncs with hospital’s **internal calendar** and capacity.
 
-🔍 Claims Tracker: Real-time status updates on insurance claims (e.g., "Submitted," "Processing," "Paid").
+- 💳 **E-Payments**
+  - Integrated payment gateway for:
+    - Credit/debit cards
+    - E-wallets
 
-Gabay 2.0: Hospital Management Core
+- 🔍 **Claims Tracker**
+  - Real-time view of **insurance claim status**:
+    - e.g., “Submitted”, “Processing”, “Paid”
 
-Target Platform: Web (Desktop)
+---
 
-🏥 Operational Command Center: Dashboard for patient search, registration, and queue management.
+### Gabay 2.0 – Hospital Core
 
-⚙️ Insurance Automation Engine: Configurable rules for carrier coverage, co-pays, and deductibles to automate "Patient Portion" calculations.
+**Target Platform:** Web (Desktop)
 
-📆 Dynamic Appointment Book: Visual scheduling interface managing provider availability and facility resources.
+- 🏥 **Operational Command Center**
+  - Unified dashboard for:
+    - Patient search and registration
+    - Queue and visit management
 
-📝 Automated Claims Generation: One-click generation of PhilHealth-compliant claim forms (PDF) from ledger data.
+- ⚙️ **Insurance Automation Engine**
+  - Configurable rules for:
+    - Carrier coverage
+    - Co-pays and deductibles
+  - Automatically computes the **“Patient Portion”** of the bill.
 
-📊 Analytics & Reporting: Real-time insights into revenue cycles, provider productivity, and disease surveillance.
+- 📆 **Dynamic Appointment Book**
+  - Visual schedule management for:
+    - Providers and their availability
+    - Rooms and facility resources
 
-🔐 Role-Based Access: Secure administrative controls for staff, doctors, and finance officers.
+- 📝 **Automated Claims Generation**
+  - One-click generation of **PhilHealth-compliant** claim forms (PDF).
+  - Pulls data directly from the **ledger and encounters**.
 
-🛠 Tech Stack
+- 📊 **Analytics & Reporting**
+  - Real-time metrics for:
+    - Revenue cycle
+    - Provider productivity
+    - Disease and case surveillance
 
-The platform is designed for low-resource environments, prioritizing cost-accessibility and portability.
+- 🔐 **Role-Based Access Control**
+  - Granular permissions for:
+    - Administrative staff
+    - Physicians
+    - Finance officers and billers
 
-Mobile Client (Gabay 1.0)
+---
 
-Framework: React Native with Expo
+## 🛠 Tech Stack
 
-State Management: Zustand
+Designed for **low-resource environments**, prioritizing **cost, reliability, and portability**.
 
-Validation: React Hook Form + Zod
+### Mobile Client (Gabay 1.0)
 
-Maps: MapLibre GL
+- **Framework:** React Native (Expo)
+- **State Management:** Zustand
+- **Forms & Validation:** React Hook Form + Zod
+- **Maps & Geospatial:** MapLibre GL
 
-Backend & DevOps
+### Backend & DevOps
 
-Infrastructure: Serverless Functions hosted on Vercel
+- **Infrastructure:** Serverless Functions on **Vercel**
+- **CI/CD:** GitHub Actions
+- **Monitoring & Error Tracking:** Sentry
 
-CI/CD: GitHub Actions
+### AI & Data
 
-Monitoring: Sentry for error tracking
+- **Primary LLM:** Groq Llama-3.1-8B-Instant
+- **Fallback LLM:** Hugging Face Mistral 7B
+- **Database:** PostgreSQL with **PostGIS** (geospatial queries)
+- **BaaS:** Supabase (Auth, Storage, Real-time Database)
 
-AI & Data
+---
 
-LLM (Primary): Groq Llama-3.1-8B-Instant
+## 🏁 Getting Started
 
-LLM (Fallback): Hugging Face Mistral 7B
+### Prerequisites
 
-Database: PostgreSQL with PostGIS extensions
+- **Node.js** v18+
+- **npm** or **yarn**
+- **Expo Go** app (for mobile testing on device)
 
-BaaS: Supabase (Auth, Storage, Real-time DB)
+> Adapt paths/commands below to match your actual repo layout  
+> (e.g., `client` / `server` instead of `mobile` / `web` if needed).
 
-🏁 Getting Started
+---
 
-Prerequisites
+### Installation
 
-Node.js (v18+)
+1. **Clone the repository**
 
-npm or yarn
+   ```bash
+   git clone https://github.com/your-username/gabay.git
+   cd gabay
+   ```
 
-Expo Go app (for mobile testing)
+2. **Install dependencies**
 
-Installation
+   **Mobile app:**
 
-Clone the repository
+   ```bash
+   cd mobile
+   npm install
+   ```
 
-git clone [https://github.com/your-username/gabay.git](https://github.com/your-username/gabay.git)
-cd gabay
+   **Web / backend:**
 
+   ```bash
+   cd ../web
+   npm install
+   ```
 
-Install dependencies
+---
 
-# For the mobile app
-cd mobile
-npm install
+### Environment Setup
 
-# For the web/backend
-cd ../web
-npm install
+Create a `.env` file in the relevant app directories (e.g., `mobile`, `web`) and configure your keys:
 
+```bash
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+GROQ_API_KEY=your_groq_api_key
+```
 
-Environment Setup
-Create a .env file in the root directories and add your keys (Supabase, Groq, MapLibre):
+Add any additional environment variables required for:
 
-EXPO_PUBLIC_SUPABASE_URL=your_url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_key
-GROQ_API_KEY=your_ai_key
+- MapLibre (e.g., tile server keys)
+- Sentry
+- Other third-party integrations
 
+---
 
-Run the Application
+### Running the Apps
 
+From the **mobile** directory:
+
+```bash
 # Run Mobile App
 npx expo start
+```
 
+From the **web** directory:
+
+```bash
 # Run Web Dashboard
 npm run dev
+```
+
+Follow the terminal instructions to open:
+
+- Mobile app in **Expo Go** (QR code)
+- Web dashboard in your browser (usually `http://localhost:3000`)
+
+---
+
+## 👥 The Team
+
+_Add your team members, roles, and contact links here._  
+For example:
+
+- Name – Role (e.g., AI Engineer, Mobile Developer)
+- Name – Role (e.g., Product Designer)
+- Name – Role (e.g., Backend Engineer)
+
+---
+
+## 🙏 Acknowledgments
+
+- **PUP Hackathon: Uthack ang Puhunan** organizers and mentors
+- Open-source communities behind:
+  - React Native, Expo, Zustand, MapLibre
+  - Supabase, PostgreSQL/PostGIS
+  - Llama, Mistral, and related AI tooling
+
+_Thank you for supporting healthcare innovation in the Philippines._
