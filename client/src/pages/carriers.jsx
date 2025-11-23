@@ -1,12 +1,12 @@
 import { Header } from "@/components/header"
-import { PatientsTable } from "@/components/patient-table"
+import { CarrierManagement } from "@/components/carrier-management"
 
-export default function PatientsPage() {
+export default function CarriersPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-6 py-6">
-        <PatientsTable />
+        <CarrierManagement />
       </main>
     </div>
   )

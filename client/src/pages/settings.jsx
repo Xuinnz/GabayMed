@@ -1,12 +1,12 @@
 import { Header } from "@/components/header"
-import { PatientsTable } from "@/components/patient-table"
+import { SettingsTabs } from "@/components/settings-tab"
 
-export default function PatientsPage() {
+export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-6 py-6">
-        <PatientsTable />
+        <SettingsTabs />
       </main>
     </div>
   )

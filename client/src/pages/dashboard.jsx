@@ -1,45 +1,33 @@
-import { AppHeader } from "@/components/app-header"
-import { DateHeader } from "@/components/date-header"
-import { DashboardStats } from "@/components/dashboard-stats"
-import { PeakHoursChart } from "@/components/peak-hours-chart"
+import { Header } from "@/components/header"
+import { DateDisplay } from "@/components/date-display"
+import { StatsCards } from "@/components/stats-cards"
+import { PeakHours } from "@/components/peak-hours"
 import { AppointmentsList } from "@/components/appointments-list"
-import { CalendarWidget } from "@/components/calendar-widget"
+import { CalendarView } from "@/components/calendar-view"
 import { RecentActivity } from "@/components/recent-activity"
+import { UpcomingSection } from "@/components/upcoming-sections"
 
 export default function DashboardPage() {
   return (
-    <main className="container mx-auto px-6 max-w-7xl">
-      <AppHeader />
-      <DateHeader />
-      <DashboardStats />
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="container mx-auto px-6 py-6">
+        <DateDisplay />
+        <StatsCards />
 
-      <div className="grid grid-cols-12 gap-6 pb-10">
-        <div className="col-span-8 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
-            <PeakHoursChart />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <div className="lg:col-span-2 space-y-6">
+            <PeakHours />
+            <RecentActivity />
+          </div>
+
+          <div className="space-y-6">
             <AppointmentsList />
-          </div>
-          <RecentActivity />
-        </div>
-        <div className="col-span-4">
-          <CalendarWidget />
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <h3 className="text-base font-bold text-gray-700 mb-4">Upcoming</h3>
-            <div className="space-y-4">
-              {[1, 2, 3].map((_, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                    <span className="text-xs font-medium text-gray-600">Nov 28</span>
-                  </div>
-                  <span className="text-xs text-gray-500">18 Appointments</span>
-                  <span className="text-xs text-gray-400">Peak @2pm</span>
-                </div>
-              ))}
-            </div>
+            <CalendarView />
+            <UpcomingSection />
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   )
 }

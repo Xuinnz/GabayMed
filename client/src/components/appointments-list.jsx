@@ -1,64 +1,53 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import { Clock } from "lucide-react"
 
 const appointments = [
   {
     time: "9:00 AM",
     patient: "Red Gabriel Tagura, 20",
     room: "Room 101",
-    procedure: "Circumcision, Vasectomy, Appendix Surgery",
-    color: "bg-blue-400",
+    procedures: ["Circumcision", "Vasectomy", "Appendix Surgery"],
   },
   {
     time: "10:00 AM",
     patient: "Red Gabriel Tagura, 20",
     room: "Room 101",
-    procedure: "Circumcision, Vasectomy, Appendix Surgery",
-    color: "bg-blue-400",
+    procedures: ["Circumcision", "Vasectomy", "Appendix Surgery"],
   },
   {
     time: "11:00 AM",
     patient: "Red Gabriel Tagura, 20",
     room: "Room 101",
-    procedure: "Circumcision, Vasectomy, Appendix Surgery",
-    color: "bg-blue-400",
+    procedures: ["Circumcision", "Vasectomy", "Appendix Surgery"],
   },
   {
     time: "1:30 PM",
     patient: "Red Gabriel Tagura, 20",
     room: "Room 101",
-    procedure: "Circumcision, Vasectomy, Appendix Surgery",
-    color: "bg-blue-400",
+    procedures: ["Circumcision", "Vasectomy", "Appendix Surgery"],
   },
 ]
 
 export function AppointmentsList() {
   return (
-    <Card className="shadow-sm border-none h-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base font-bold text-gray-700">Appointments</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {appointments.map((apt, index) => (
-            <div key={index} className="flex gap-4 relative">
-              <div className="flex flex-col items-center">
-                <div className={`w-3 h-3 rounded-full ${apt.color} z-10`} />
-                {index !== appointments.length - 1 && <div className="w-0.5 h-full bg-blue-100 absolute top-3" />}
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4">Appointments</h3>
+      <div className="space-y-4">
+        {appointments.map((apt, index) => (
+          <div key={index} className="flex gap-3">
+            <div className="w-1 bg-primary rounded-full" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-primary" />
+                <span className="font-medium text-sm">{apt.time}</span>
               </div>
-              <div className="flex-1 pb-4">
-                <span className="text-xs font-bold text-gray-500 block mb-1">{apt.time}</span>
-                <div className="bg-blue-50/50 p-3 rounded-lg">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-sm text-gray-700">{apt.patient}</span>
-                    <span className="text-[10px] text-gray-400">{apt.room}</span>
-                  </div>
-                  <p className="text-[10px] text-gray-500">{apt.procedure}</p>
-                </div>
-              </div>
+              <div className="text-sm font-medium mb-1">{apt.patient}</div>
+              <div className="text-xs text-muted-foreground mb-1">{apt.room}</div>
+              <div className="text-xs text-muted-foreground">{apt.procedures.join(", ")}</div>
             </div>
-          ))}
-        </div>
-      </CardContent>
+          </div>
+        ))}
+      </div>
     </Card>
   )
 }
