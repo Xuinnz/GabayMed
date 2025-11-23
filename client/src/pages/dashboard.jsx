@@ -19,12 +19,12 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <PeakHours />
             <RecentActivity />
+            <UpcomingSection />
           </div>
 
           <div className="space-y-6">
             <AppointmentsList />
             <CalendarView />
-            <UpcomingSection />
           </div>
         </div>
       </main>

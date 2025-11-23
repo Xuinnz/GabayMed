@@ -21,8 +21,8 @@ export function PeakHours() {
       <div className="h-[240px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickMargin={15} />
+            <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickMargin={15} />
             <Tooltip
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
