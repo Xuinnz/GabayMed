@@ -43,7 +43,7 @@ const handler = async (request, response) => {
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userContent }
             ],
-            model: 'llama3-8b-8192', // Fast & Cheap
+            model: 'llama-3.1-8b-instant', // Fast & Cheap
             temperature: 0.1,        // Low temp = strict JSON
             response_format: { type: "json_object" } // Enforce JSON mode
         });
