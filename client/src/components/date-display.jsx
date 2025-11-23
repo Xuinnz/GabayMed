@@ -77,7 +77,7 @@ export function DateDisplay() {
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-4">
         <h1 className="text-6xl font-light text-primary/70">{dayName}</h1>
-        <div className="flex flex-col justify-center text-muted-foreground">
+        <div className="flex flex-col justify-center text-muted-foreground mt-4 ">
           <div className="text-sm leading-tight">{monthName} {day}</div>
           <div className="text-sm leading-tight">{year}</div>
         </div>

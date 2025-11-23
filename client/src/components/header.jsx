@@ -1,9 +1,47 @@
+import { useState, useEffect } from "react"
 import { Heart, Bell, Settings, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export function Header() {
+  const [currentPage, setCurrentPage] = useState('dashboard')
+
+  useEffect(() => {
+    // Get current page from URL
+    const path = window.location.pathname
+    if (path === '/patients') setCurrentPage('patients')
+    else if (path === '/appointments') setCurrentPage('appointments')
+    else if (path === '/carriers') setCurrentPage('carriers')
+    else if (path === '/settings') setCurrentPage('settings')
+    else setCurrentPage('dashboard')
+
+    // Listen for navigation changes
+    const handleLocationChange = () => {
+      const path = window.location.pathname
+      if (path === '/patients') setCurrentPage('patients')
+      else if (path === '/appointments') setCurrentPage('appointments')
+      else if (path === '/carriers') setCurrentPage('carriers')
+      else if (path === '/settings') setCurrentPage('settings')
+      else setCurrentPage('dashboard')
+    }
+
+    window.addEventListener('popstate', handleLocationChange)
+    
+    // Also listen for custom event from App.jsx navigation
+    const observer = new MutationObserver(handleLocationChange)
+    observer.observe(document, { subtree: true, childList: true })
+
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange)
+      observer.disconnect()
+    }
+  }, [])
+
+  const isHomeActive = currentPage === 'dashboard' || currentPage === 'carriers'
+  const isPatientsActive = currentPage === 'patients'
+  const isAppointmentsActive = currentPage === 'appointments'
+
   return (
     <header className="border-b bg-card">
       <div className="container mx-auto px-6 py-4">
@@ -18,7 +56,10 @@ export function Header() {
             <nav className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="bg-primary/10 text-primary hover:bg-primary/20">
+                  <Button 
+                    variant="ghost" 
+                    className={isHomeActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
+                  >
                     Home
                   </Button>
                 </DropdownMenuTrigger>
@@ -32,11 +73,19 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button variant="ghost" asChild>
+              <Button 
+                variant="ghost" 
+                asChild
+                className={isPatientsActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
+              >
                 <a href="/patients">Patient</a>
               </Button>
 
-              <Button variant="ghost" asChild>
+              <Button 
+                variant="ghost" 
+                asChild
+                className={isAppointmentsActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
+              >
                 <a href="/appointments">Appointments</a>
               </Button>
             </nav>
