@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react"
-import { Heart, Bell, Settings, Search } from "lucide-react"
+import { Heart, Bell, Search, User, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 
 export function Header() {
   const [currentPage, setCurrentPage] = useState('dashboard')
@@ -100,16 +100,31 @@ export function Header() {
               <Bell className="w-5 h-5" />
             </Button>
 
-            <Button variant="ghost" size="icon" asChild>
-              <a href="/settings">
-                <Settings className="w-5 h-5" />
-              </a>
-            </Button>
-
-            <Avatar>
-              <AvatarImage src="/caring-doctor.png" alt="User" />
-              <AvatarFallback>DR</AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Avatar>
+                    <AvatarImage src="/caring-doctor.png" alt="User" />
+                    <AvatarFallback>DR</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <a href="/profile" className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    My Profile
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href="/settings" className="flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Settings
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

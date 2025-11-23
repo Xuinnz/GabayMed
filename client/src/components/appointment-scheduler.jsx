@@ -1,3 +1,5 @@
+"use client"
+
 import { useState } from "react"
 import { ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,26 @@ export function AppointmentScheduler() {
     return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
   }
 
+  const handleNewAppointment = () => {
+    setSelectedSlot({ providerId: providers[0].id, time: 8, date: selectedDate, appointment: null })
+  }
+
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() - 1)
+    setSelectedDate(newDate)
+  }
+
+  const goToToday = () => {
+    setSelectedDate(new Date())
+  }
+
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() + 1)
+    setSelectedDate(newDate)
+  }
+
   return (
     <div className="flex h-[calc(100vh-120px)] gap-6">
       <div className="flex-1 flex flex-col gap-4">
@@ -70,18 +92,18 @@ export function AppointmentScheduler() {
               })}
             </h2>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToPreviousDay}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToToday}>
                 <CalendarIcon className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToNextDay}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
-          <Button className="bg-blue-500">New Appointment</Button>
+          <Button className="bg-blue-500" onClick={handleNewAppointment}>New Appointment</Button>
         </div>
 
         <div className="flex-1 border rounded-lg overflow-auto bg-white">
@@ -154,20 +176,19 @@ export function AppointmentScheduler() {
       </div>
 
       {/* Right Panel - Appointment Details */}
-      <Card className="w-[400px] h-full border-l shadow-none rounded-none border-y-0 border-r-0">
-        <CardContent className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-lg">
-              {selectedSlot?.appointment ? "Appointment Details" : "New Appointment"}
-            </h3>
-            {selectedSlot && (
+      {selectedSlot && (
+        <Card className="w-[400px] h-full border-l shadow-none rounded-none border-y-0 border-r-0">
+          <CardContent className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                {selectedSlot?.appointment ? "Appointment Details" : "New Appointment"}
+              </h3>
               <Button variant="ghost" size="icon" onClick={() => setSelectedSlot(null)}>
                 <X className="w-4 h-4" />
               </Button>
-            )}
-          </div>
+            </div>
 
-          {selectedSlot ? (
+            {selectedSlot && (
             <div className="space-y-4">
               <div className="space-y-1">
                 <Label className="text-muted-foreground text-xs uppercase tracking-wider">Date & Time</Label>
@@ -321,16 +342,10 @@ export function AppointmentScheduler() {
                 )}
               </div>
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-10">
-              <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CalendarIcon className="w-8 h-8 text-slate-300" />
-              </div>
-              <p>Select a time slot to schedule an appointment</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
