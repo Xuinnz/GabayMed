@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Plus, Calendar, Eye, Cloud, CloudRain, Sun, CloudDrizzle, ArrowLeft } from "lucide-react"
+import { Search, Plus, Calendar, Eye, ArrowLeft } from "lucide-react"
 import { AddPatientDialog } from "@/components/add-patient-dialog"
 import { PatientProfile } from "@/components/patient-profile"
 
@@ -21,76 +21,6 @@ const patients = [
 export function PatientsTable() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState(null)
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [weather, setWeather] = useState({ temp: 29, condition: 'cloudy' })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // Update date every minute
-    const dateInterval = setInterval(() => {
-      setCurrentDate(new Date())
-    }, 60000)
-
-    // Fetch Manila weather
-    const fetchWeather = async () => {
-      try {
-        const response = await fetch(
-          'https://api.open-meteo.com/v1/forecast?latitude=14.5995&longitude=120.9842&current=temperature_2m,weather_code&timezone=Asia/Manila'
-        )
-        const data = await response.json()
-        
-        if (data.current) {
-          const temp = Math.round(data.current.temperature_2m)
-          const weatherCode = data.current.weather_code
-          
-          // Map weather codes to conditions
-          let condition = 'cloudy'
-          if (weatherCode === 0) condition = 'sunny'
-          else if (weatherCode >= 51 && weatherCode <= 67) condition = 'rainy'
-          else if (weatherCode >= 80 && weatherCode <= 99) condition = 'rainy'
-          else if (weatherCode >= 1 && weatherCode <= 3) condition = 'cloudy'
-          
-          setWeather({ temp, condition })
-        }
-      } catch (error) {
-        console.error('Failed to fetch weather:', error)
-        // Fallback to typical Manila weather
-        setWeather({ temp: 29, condition: 'cloudy' })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchWeather()
-    // Refresh weather every 30 minutes
-    const weatherInterval = setInterval(fetchWeather, 1800000)
-
-    return () => {
-      clearInterval(dateInterval)
-      clearInterval(weatherInterval)
-    }
-  }, [])
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  
-  const dayName = dayNames[currentDate.getDay()]
-  const monthName = monthNames[currentDate.getMonth()]
-  const day = currentDate.getDate()
-  const year = currentDate.getFullYear()
-
-  const WeatherIcon = () => {
-    switch (weather.condition) {
-      case 'sunny':
-        return <Sun className="w-8 h-8 text-primary/60" />
-      case 'rainy':
-        return <CloudRain className="w-8 h-8 text-primary/60" />
-      case 'drizzle':
-        return <CloudDrizzle className="w-8 h-8 text-primary/60" />
-      default:
-        return <Cloud className="w-8 h-8 text-primary/60" />
-    }
-  }
 
   // If a patient is selected, show their profile
   if (selectedPatient) {
@@ -111,37 +41,13 @@ export function PatientsTable() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-6xl font-light text-primary/70">{dayName}</h1>
-          <div className="flex flex-col justify-center text-muted-foreground mt-4">
-            <div className="text-sm leading-tight">{monthName} {day}</div>
-            <div className="text-sm leading-tight">{year}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <WeatherIcon />
-            <span className="text-4xl font-light text-primary/60">
-              {loading ? '...' : `${weather.temp}°C`}
-            </span>
-          </div>
-
-          <div className="text-right">
-            <div className="text-sm text-muted-foreground">Metropolitan</div>
-            <div className="text-sm font-medium">Medical Center</div>
-          </div>
-        </div>
-      </div>
-
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-sm text-muted-foreground">60 Patients in Total</h2>
+          <h2 className="text-sm font-semibold text-[#4B6368]">{patients.length} Patients in Total</h2>
 
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4B6368]" />
               <Input placeholder="Search for Patients..." className="pl-9 w-[300px]" />
             </div>
 

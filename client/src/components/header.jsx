@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
-import { Heart, Bell, Search, User, Settings } from "lucide-react"
+import { Heart, Bell, Search, User, Settings, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { GlobalSearch } from "@/components/global-search"
 
 export function Header() {
   const [currentPage, setCurrentPage] = useState('dashboard')
@@ -43,88 +44,93 @@ export function Header() {
   const isAppointmentsActive = currentPage === 'appointments'
 
   return (
-    <header className="border-b bg-card">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
+    <header className="py-6">
+      <div className="container mx-auto px-6">
+        <div className="bg-[#FAFEFF] rounded-full shadow-sm border px-6 py-3">
+          <div className="flex items-center justify-between">
             <a href="/" className="flex items-center">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                <Heart className="w-6 h-6 text-white fill-white" />
-              </div>
+              <img src="/src/assets/Logo.svg" alt="GabayMed" className="w-10 h-10" />
             </a>
 
-            <nav className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <nav className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      style={isHomeActive ? { background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)' } : {background: '#F4F4F4'}}
+                      className={`rounded-full px-6 ${isHomeActive ? "text-white hover:opacity-90" : ""}`}
+                    >
+                      Home
+                      <ChevronDown className="w-4 h-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem asChild>
+                      <a href="/">Overview</a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a href="/carriers">Carrier</a>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button 
+                  variant="ghost" 
+                  asChild
+                  style={isPatientsActive ? { background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)' } : {background: '#F4F4F4'}}
+                  className={`rounded-full px-6 ${isPatientsActive ? "text-white hover:opacity-90" : ""}`}
+                >
+                  <a href="/patients">Patient</a>
+                </Button>
+
+                <Button 
+                  variant="ghost" 
+                  asChild
+                  style={isAppointmentsActive ? { background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)' } : {background: '#F4F4F4'}}
+                  className={`rounded-full px-6 ${isAppointmentsActive ? "text-white hover:opacity-90" : ""}`}
+                >
+                  <a href="/appointments">Appointments</a>
+                </Button>
+              </nav>
+
+              <GlobalSearch />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Bell className="w-5 h-5" />
+                </Button>
+                <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              </div>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    className={isHomeActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
-                  >
-                    Home
+                  <Button variant="ghost" size="icon" className="rounded-full p-0">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src="/caring-doctor.png" alt="User" />
+                      <AvatarFallback>DR</AvatarFallback>
+                    </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
+                <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild>
-                    <a href="/">Overview</a>
+                    <a href="/profile" className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      My Profile
+                    </a>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <a href="/carriers">Carrier</a>
+                    <a href="/settings" className="flex items-center gap-2">
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </a>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-
-              <Button 
-                variant="ghost" 
-                asChild
-                className={isPatientsActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
-              >
-                <a href="/patients">Patient</a>
-              </Button>
-
-              <Button 
-                variant="ghost" 
-                asChild
-                className={isAppointmentsActive ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}
-              >
-                <a href="/appointments">Appointments</a>
-              </Button>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Search className="w-4 h-4" />
             </div>
-
-            <Button variant="ghost" size="icon">
-              <Bell className="w-5 h-5" />
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Avatar>
-                    <AvatarImage src="/caring-doctor.png" alt="User" />
-                    <AvatarFallback>DR</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <a href="/profile" className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    My Profile
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/settings" className="flex items-center gap-2">
-                    <Settings className="w-4 h-4" />
-                    Settings
-                  </a>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </div>

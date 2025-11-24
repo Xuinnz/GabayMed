@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -10,10 +10,66 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 
-export function AddInsurancePlanDialog({ open, onOpenChange }) {
+export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAdded }) {
+  const [formData, setFormData] = useState({
+    carrier: '',
+    subscriberId: '',
+    coverageType: '',
+    notes: ''
+  })
   const [coverageStartDate, setCoverageStartDate] = useState()
   const [coverageEndDate, setCoverageEndDate] = useState()
   const [verificationDate, setVerificationDate] = useState()
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        carrier: '',
+        subscriberId: '',
+        coverageType: '',
+        notes: ''
+      })
+      setCoverageStartDate(undefined)
+      setCoverageEndDate(undefined)
+      setVerificationDate(undefined)
+    }
+  }, [open])
+
+  const isFormValid = () => {
+    return formData.carrier && 
+           formData.subscriberId && 
+           formData.coverageType && 
+           coverageStartDate &&
+           verificationDate
+  }
+
+  const handleSubmit = async () => {
+    if (!isFormValid()) return
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/patients/${patientId}/insurance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          coverageStartDate: coverageStartDate?.toISOString(),
+          coverageEndDate: coverageEndDate?.toISOString(),
+          verificationDate: verificationDate?.toISOString()
+        })
+      })
+
+      if (response.ok) {
+        onOpenChange(false)
+        if (onPlanAdded) {
+          onPlanAdded() // Refresh insurance plans list
+        }
+      }
+    } catch (err) {
+      console.error('Failed to add insurance plan:', err)
+      alert('Failed to add insurance plan. Please try again.')
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -25,8 +81,11 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="carrier">Insurance Carrier / Plan Name *</Label>
-            <Select>
+            <Label htmlFor="carrier">Insurance Carrier / Plan Name <span className="text-red-500">*</span></Label>
+            <Select
+              value={formData.carrier}
+              onValueChange={(value) => setFormData({ ...formData, carrier: value })}
+            >
               <SelectTrigger id="carrier">
                 <SelectValue placeholder="Select carrier" />
               </SelectTrigger>
@@ -42,11 +101,12 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="subscriberId">Subscriber ID / PhilHealth Identification Number (PIN) *</Label>
+            <Label htmlFor="subscriberId">Subscriber ID / PhilHealth Identification Number (PIN) <span className="text-red-500">*</span></Label>
             <Input
               id="subscriberId"
               placeholder="Enter 12-digit PIN for PhilHealth or Member ID for HMO"
-              maxLength={12}
+              value={formData.subscriberId}
+              onChange={(e) => setFormData({ ...formData, subscriberId: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
               For PhilHealth: 12-digit PIN. For private HMOs: Member ID or Policy Number
@@ -54,8 +114,11 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="coverageType">Coverage Type *</Label>
-            <Select>
+            <Label htmlFor="coverageType">Coverage Type <span className="text-red-500">*</span></Label>
+            <Select
+              value={formData.coverageType}
+              onValueChange={(value) => setFormData({ ...formData, coverageType: value })}
+            >
               <SelectTrigger id="coverageType">
                 <SelectValue placeholder="Select coverage type" />
               </SelectTrigger>
@@ -71,16 +134,28 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Coverage Start Date *</Label>
+              <Label>Coverage Start Date <span className="text-red-500">*</span></Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {coverageStartDate ? format(coverageStartDate, "PPP") : <span>Pick a date</span>}
+                    {coverageStartDate ? format(coverageStartDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={coverageStartDate} onSelect={setCoverageStartDate} />
+                  <Calendar 
+                    mode="single" 
+                    selected={coverageStartDate} 
+                    onSelect={setCoverageStartDate}
+                    initialFocus
+                    classNames={{
+                      head_cell: "text-center w-9",
+                      cell: "text-center w-9",
+                      day: "w-9 h-9 p-0",
+                      day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
+                      day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
+                    }}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
@@ -91,27 +166,51 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {coverageEndDate ? format(coverageEndDate, "PPP") : <span>Pick a date</span>}
+                    {coverageEndDate ? format(coverageEndDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={coverageEndDate} onSelect={setCoverageEndDate} />
+                  <Calendar 
+                    mode="single" 
+                    selected={coverageEndDate} 
+                    onSelect={setCoverageEndDate}
+                    initialFocus
+                    classNames={{
+                      head_cell: "text-center w-9",
+                      cell: "text-center w-9",
+                      day: "w-9 h-9 p-0",
+                      day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
+                      day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
+                    }}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Verification Date *</Label>
+            <Label>Verification Date <span className="text-red-500">*</span></Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {verificationDate ? format(verificationDate, "PPP") : <span>Pick a date</span>}
+                  {verificationDate ? format(verificationDate, "MM/dd/yyyy") : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={verificationDate} onSelect={setVerificationDate} />
+                <Calendar 
+                  mode="single" 
+                  selected={verificationDate} 
+                  onSelect={setVerificationDate}
+                  initialFocus
+                  classNames={{
+                    head_cell: "text-center w-9",
+                    cell: "text-center w-9",
+                    day: "w-9 h-9 p-0",
+                    day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
+                    day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
+                  }}
+                />
               </PopoverContent>
             </Popover>
             <p className="text-xs text-muted-foreground">
@@ -125,6 +224,8 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
               id="notes"
               placeholder="Add patient-specific insurance details (e.g., 'Maxicare is only for out-patient', 'Requires Letter of Authorization for all procedures')"
               rows={4}
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             />
           </div>
         </div>
@@ -133,7 +234,11 @@ export function AddInsurancePlanDialog({ open, onOpenChange }) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="bg-blue-500" onClick={() => onOpenChange(false)}>
+          <Button 
+            className="bg-blue-500" 
+            onClick={handleSubmit}
+            disabled={!isFormValid()}
+          >
             Add Plan
           </Button>
         </div>

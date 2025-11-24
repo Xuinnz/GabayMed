@@ -17,7 +17,7 @@ const data = [
 export function PeakHours() {
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-semibold mb-4">Peak Hours</h3>
+      <h3 className="text-2xl font-bold text-[#4B6368] mb-4">Peak Hours</h3>
       <div className="h-[240px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>

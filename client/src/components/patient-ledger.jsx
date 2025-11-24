@@ -200,29 +200,29 @@ export function PatientLedger({ patientId }) {
 
         <Card className="bg-blue-50 border-blue-100">
           <CardContent className="p-4">
-            <div className="text-sm text-blue-600 mb-2 font-medium">Balance Breakdown</div>
+            <div className="text-sm text-[#66BAFF] mb-2 font-bold">Balance Breakdown</div>
             <div className="grid grid-cols-4 gap-2 text-center">
               <div className="border-r border-blue-200">
-                <div className="text-xs text-blue-600 mb-1">Total</div>
+                <div className="text-xs text-[#66BAFF] font-bold mb-1">Total</div>
                 <div className="font-bold text-blue-900">
                   ₱{financialData.balance.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-blue-600 mb-1">Insurance</div>
+                <div className="text-xs text-[#66BAFF] font-bold mb-1">Insurance</div>
                 <div className="font-bold text-blue-900">
                   ₱{financialData.balance.insurance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-blue-600 mb-1">Adjust</div>
+                <div className="text-xs text-[#66BAFF] font-bold  mb-1">Adjust</div>
                 <div className="font-bold text-blue-900">
                   ₱{financialData.balance.adjust.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div className="bg-white rounded p-1 shadow-sm">
-                <div className="text-xs text-blue-600 mb-1 font-bold">Patient</div>
-                <div className="font-bold text-blue-600">
+                <div className="text-xs text-[#66BAFF] mb-1 font-bold">Patient</div>
+                <div className="font-bold text-[#66BAFF] ">
                   ₱{financialData.balance.patient.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </div>
               </div>
@@ -239,7 +239,7 @@ export function PatientLedger({ patientId }) {
         <div className="flex items-center gap-2">
           <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
+              <Button variant="outline" className="border-blue-200 text-[#66BAFF] hover:bg-blue-50 bg-transparent">
                 <CreditCard className="w-4 h-4 mr-2" />
                 Payment
               </Button>
@@ -336,7 +336,6 @@ export function PatientLedger({ patientId }) {
                 </div>
 
                 <Button 
-                  className="w-full bg-blue-500 mt-2" 
                   onClick={handlePaymentSubmit}
                   disabled={!isPaymentFormValid()}
                 >
@@ -348,7 +347,7 @@ export function PatientLedger({ patientId }) {
 
           <Dialog open={isProcedureDialogOpen} onOpenChange={setIsProcedureDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-500 hover:bg-blue-600">
+              <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Procedure
               </Button>
@@ -419,7 +418,6 @@ export function PatientLedger({ patientId }) {
                   </div>
                 </div>
                 <Button 
-                  className="w-full bg-blue-500"
                   onClick={handleProcedureSubmit}
                   disabled={!isProcedureFormValid()}
                 >

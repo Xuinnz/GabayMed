@@ -356,24 +356,24 @@ export function SettingsTabs() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Clinic Name</Label>
-                  <Input defaultValue="Metropolitan Medical Center" />
+                  <Label>Clinic Name <span className="text-red-500">*</span></Label>
+                  <Input defaultValue="Metropolitan Medical Center" required />
                 </div>
                 <div className="space-y-2">
                   <Label>Abbreviation</Label>
                   <Input defaultValue="MMC-01" />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Address</Label>
-                  <Input defaultValue="123 Medical Plaza, Makati City" />
+                  <Label>Address <span className="text-red-500">*</span></Label>
+                  <Input defaultValue="123 Medical Plaza, Makati City" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input defaultValue="+63 2 8123 4567" />
+                  <Label>Phone <span className="text-red-500">*</span></Label>
+                  <Input defaultValue="+63 2 8123 4567" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input defaultValue="info@metromedical.ph" />
+                  <Label>Email <span className="text-red-500">*</span></Label>
+                  <Input type="email" defaultValue="info@metromedical.ph" required />
                 </div>
                 <div className="space-y-2">
                   <Label>Timezone</Label>

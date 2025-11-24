@@ -103,7 +103,7 @@ export function AppointmentScheduler() {
               </Button>
             </div>
           </div>
-          <Button className="bg-blue-500" onClick={handleNewAppointment}>New Appointment</Button>
+          <Button onClick={handleNewAppointment}>New Appointment</Button>
         </div>
 
         <div className="flex-1 border rounded-lg overflow-auto bg-white">
@@ -334,7 +334,7 @@ export function AppointmentScheduler() {
                   </>
                 ) : (
                   <>
-                    <Button className="w-full bg-blue-500">Save</Button>
+                    <Button className="w-full">Save</Button>
                     <Button variant="outline" className="w-full bg-transparent" onClick={() => setSelectedSlot(null)}>
                       Cancel
                     </Button>

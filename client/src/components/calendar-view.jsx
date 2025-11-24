@@ -82,9 +82,9 @@ export function CalendarView() {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">{monthNames[month]} {year}</h3>
+        <h3 className="text-2xl font-bold text-[#4B6368]">{monthNames[month]} {year}</h3>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goToToday}>
+          <Button variant="ghost" size="sm" onClick={goToToday} className="text-sm font-bold text-[#4B6368]">
             Today
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPreviousMonth}>
@@ -96,9 +96,9 @@ export function CalendarView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 text-xs">
+      <div className="grid grid-cols-7 gap-0 text-xs mx-0">
         {daysOfWeek.map((day) => (
-          <div key={day} className="text-center text-muted-foreground font-medium pb-2">
+          <div key={day} className="text-center text-muted-foreground font-medium pb-1 text-[10px]">
             {day}
           </div>
         ))}
@@ -111,9 +111,9 @@ export function CalendarView() {
               key={i}
               onClick={() => setSelectedDate(item.date)}
               className={`
-                aspect-square flex items-center justify-center rounded-md transition-colors
+                aspect-square flex items-center justify-center rounded-md transition-colors text-xs
                 ${!item.isCurrentMonth ? 'text-muted-foreground/40' : 'text-foreground'}
-                ${today ? 'bg-primary text-primary-foreground font-semibold' : ''}
+                ${today ? 'bg-[#66BAFF] text-primary-foreground font-semibold' : ''}
                 ${selected && !today ? 'bg-accent' : ''}
                 ${item.isCurrentMonth && !today && !selected ? 'hover:bg-accent/50' : ''}
               `}

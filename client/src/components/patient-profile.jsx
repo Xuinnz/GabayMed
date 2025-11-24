@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export function PatientProfile({ patient }) {
   const [isAddPlanOpen, setIsAddPlanOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [insurancePlans, setInsurancePlans] = useState([])
+  const [loadingPlans, setLoadingPlans] = useState(true)
   const [patientData, setPatientData] = useState(patient || {
     name: "Red Gabriel Tagura",
     age: "20",
@@ -43,6 +45,29 @@ export function PatientProfile({ patient }) {
         .catch(err => console.error('Failed to fetch patient details:', err))
     }
   }, [patient?.id])
+
+  // Fetch insurance plans
+  const fetchInsurancePlans = () => {
+    if (patientData.id) {
+      setLoadingPlans(true)
+      fetch(`http://localhost:3000/api/patients/${patientData.id}/insurance`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.plans) {
+            setInsurancePlans(data.plans)
+          }
+          setLoadingPlans(false)
+        })
+        .catch(err => {
+          console.error('Failed to fetch insurance plans:', err)
+          setLoadingPlans(false)
+        })
+    }
+  }
+
+  useEffect(() => {
+    fetchInsurancePlans()
+  }, [patientData.id])
 
   const handleEditSave = async () => {
     try {
@@ -202,13 +227,63 @@ export function PatientProfile({ patient }) {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-muted-foreground">No active insurance plans found.</div>
+              {loadingPlans ? (
+                <div className="text-sm text-muted-foreground">Loading insurance plans...</div>
+              ) : insurancePlans.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No active insurance plans found.</div>
+              ) : (
+                <div className="space-y-4">
+                  {insurancePlans.map((plan) => (
+                    <div key={plan.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">{plan.carrier}</h3>
+                          <p className="text-sm text-muted-foreground">{plan.coverageType}</p>
+                        </div>
+                        <Badge variant={plan.status === 'active' ? 'default' : 'secondary'}>
+                          {plan.status || 'Active'}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Subscriber ID:</span>
+                          <span className="ml-2 font-medium">{plan.subscriberId}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Coverage Start:</span>
+                          <span className="ml-2">{plan.coverageStartDate ? new Date(plan.coverageStartDate).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                        {plan.coverageEndDate && (
+                          <div>
+                            <span className="text-muted-foreground">Coverage End:</span>
+                            <span className="ml-2">{new Date(plan.coverageEndDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">Last Verified:</span>
+                          <span className="ml-2">{plan.verificationDate ? new Date(plan.verificationDate).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                      </div>
+                      {plan.notes && (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-sm text-muted-foreground">{plan.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      <AddInsurancePlanDialog open={isAddPlanOpen} onOpenChange={setIsAddPlanOpen} />
+      <AddInsurancePlanDialog 
+        open={isAddPlanOpen} 
+        onOpenChange={setIsAddPlanOpen}
+        patientId={patientData.id}
+        onPlanAdded={fetchInsurancePlans}
+      />
 
       {/* Edit Profile Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

@@ -122,19 +122,19 @@ export function StatsCards() {
         <Card key={index} className="p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 rounded-lg bg-[#f9f9f9] flex items-center justify-center">
+                <stat.icon className="w-6 h-6 text-[#66BAFF]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-2xl font-semibold">{stat.value}</span>
                   {stat.badge && (
-                    <Badge variant={stat.badgeVariant || "secondary"} className="text-xs">
+                    <Badge variant={stat.badgeVariant || "secondary"} className="text-xs text-black bg-[#66BAFF]">
                       {stat.badge}
                     </Badge>
                   )}
                 </div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <div className="text-sm text-muted-foreground font-semibold">{stat.label}</div>
               </div>
             </div>
           </div>

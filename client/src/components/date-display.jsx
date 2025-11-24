@@ -74,26 +74,65 @@ export function DateDisplay() {
   }
 
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-6xl font-light text-primary/70">{dayName}</h1>
-        <div className="flex flex-col justify-center text-muted-foreground mt-4 ">
-          <div className="text-sm leading-tight">{monthName} {day}</div>
-          <div className="text-sm leading-tight">{year}</div>
+    <div className="flex items-center justify-between mb-6 -mt-8">
+      <div className="flex items-center gap-6">
+        <h1 
+          className="text-5xl font-bold tracking-wide"
+          style={{ 
+            fontFamily: 'Geist, sans-serif',
+            background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}
+        >
+          {dayName}
+        </h1>
+        <div className="w-1 h-16 bg-gradient-to-b from-[#A8D5FF] to-[#7AB8E8] opacity-30 rounded-full" />
+        <div 
+          className="flex flex-col justify-center"
+          style={{ 
+            fontFamily: 'Geist, sans-serif',
+            background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}
+        >
+          <div className="text-xl leading-tight font-semibold">{monthName} {day}</div>
+          <div className="text-xl leading-tight font-semibold text-right">{year}</div>
         </div>
       </div>
 
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-2">
           <WeatherIcon />
-          <span className="text-4xl font-light text-primary/60">
+          <span 
+            className="text-4xl font-bold"
+            style={{ 
+              fontFamily: 'Geist, sans-serif',
+              background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}
+          >
             {loading ? '...' : `${weather.temp}°C`}
           </span>
         </div>
 
-        <div className="text-right">
-          <div className="text-sm text-muted-foreground">Metropolitan</div>
-          <div className="text-sm font-medium">Medical Center</div>
+        <div 
+          className="text-right"
+          style={{ 
+            fontFamily: 'Geist, sans-serif',
+            background: 'linear-gradient(180deg, #A8D5FF 0%, #7AB8E8 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}
+        >
+          <div className="text-lg font-bold -mb-2">Metropolitan</div>
+          <div className="text-lg font-bold">Medical Center</div>
         </div>
       </div>
     </div>
