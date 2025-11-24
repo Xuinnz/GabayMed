@@ -24,7 +24,7 @@ export default function DashboardPage() {
             <AppointmentsList />
            </div>
           <div className="space-y-6">
-            <CalendarView />
+            <CalendarView mode="display" />
             <UpcomingSection />
 
           </div>

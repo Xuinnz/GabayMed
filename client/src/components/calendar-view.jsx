@@ -6,9 +6,27 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-export function CalendarView() {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(new Date())
+/**
+ * CalendarView - A reusable calendar component
+ * @param {Object} props
+ * @param {Date} props.value - The selected date (controlled component)
+ * @param {Function} props.onChange - Callback when date is selected
+ * @param {boolean} props.showTodayButton - Whether to show the "Today" button (default: true)
+ * @param {boolean} props.highlightToday - Whether to highlight today's date with blue background (default: true)
+ * @param {string} props.mode - "display" mode locks calendar on today, "picker" mode allows date selection (default: "picker")
+ * @param {string} props.className - Additional classes for the Card wrapper
+ */
+export function CalendarView({ 
+  value, 
+  onChange, 
+  showTodayButton = true,
+  highlightToday = true,
+  mode = "picker",
+  className = ""
+}) {
+  const today = new Date()
+  const [currentDate, setCurrentDate] = useState(mode === "display" ? today : (value || new Date()))
+  const [selectedDate, setSelectedDate] = useState(mode === "display" ? today : (value || new Date()))
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -62,8 +80,10 @@ export function CalendarView() {
   }
 
   const goToToday = () => {
-    setCurrentDate(new Date())
-    setSelectedDate(new Date())
+    const today = new Date()
+    setCurrentDate(today)
+    setSelectedDate(today)
+    if (onChange) onChange(today)
   }
 
   const isToday = (date) => {
@@ -79,14 +99,22 @@ export function CalendarView() {
            date.getFullYear() === selectedDate.getFullYear()
   }
 
+  const handleSelect = (date) => {
+    if (mode === "display") return // Don't allow date selection in display mode
+    setSelectedDate(date)
+    if (onChange) onChange(date)
+  }
+
   return (
-    <Card className="p-6">
+    <Card className={`p-6 ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-2xl font-bold text-[#4B6368]">{monthNames[month]} {year}</h3>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goToToday} className="text-sm font-bold text-[#4B6368]">
-            Today
-          </Button>
+          {showTodayButton && (
+            <Button variant="ghost" size="sm" onClick={goToToday} className="text-sm font-bold text-[#4B6368]">
+              Today
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPreviousMonth}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -109,13 +137,14 @@ export function CalendarView() {
           return (
             <button
               key={i}
-              onClick={() => setSelectedDate(item.date)}
+              onClick={() => handleSelect(item.date)}
               className={`
                 aspect-square flex items-center justify-center rounded-md transition-colors text-xs
                 ${!item.isCurrentMonth ? 'text-muted-foreground/40' : 'text-foreground'}
-                ${today ? 'bg-[#66BAFF] text-primary-foreground font-semibold' : ''}
-                ${selected && !today ? 'bg-accent' : ''}
-                ${item.isCurrentMonth && !today && !selected ? 'hover:bg-accent/50' : ''}
+                ${selected ? 'bg-[#66BAFF] text-primary-foreground font-semibold' : ''}
+                ${today && highlightToday && !selected ? 'ring-1 ring-[#66BAFF] ring-inset' : ''}
+                ${item.isCurrentMonth && !selected && mode === 'picker' ? 'hover:bg-accent/50' : ''}
+                ${mode === 'display' ? 'cursor-default' : 'cursor-pointer'}
               `}
             >
               {item.day}

@@ -2,12 +2,17 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CalendarView } from "@/components/calendar-view"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
 
 export function AddPatientDialog({ open, onOpenChange }) {
   const [preferredContact, setPreferredContact] = useState("")
+    const [dob, setDob] = useState()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,7 +36,17 @@ export function AddPatientDialog({ open, onOpenChange }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dob">Date of Birth <span className="text-red-500">*</span></Label>
-              <Input id="dob" type="date" required />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dob ? format(dob, "MM/dd/yyyy") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarView value={dob} onChange={setDob} highlightToday={false} />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="sex">Sex <span className="text-red-500">*</span></Label>

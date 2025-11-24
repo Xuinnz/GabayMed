@@ -10,11 +10,15 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarView } from "@/components/calendar-view"
+import { format } from "date-fns"
 
 const hours = Array.from({ length: 10 }, (_, i) => i + 8) // 8 AM to 5 PM
 const providers = [
   { id: 1, name: "Dr. Sarah Smith", role: "Dentist", image: "/placeholder-user.jpg" },
   { id: 2, name: "Dr. James Wilson", role: "Orthodontist", image: "/placeholder-user.jpg" },
+    { id: 3, name: "Dr. Maria Garcia", role: "Hygienist", image: "/placeholder-user.jpg" }
 ]
 
 const bookedAppointments = [
@@ -53,6 +57,16 @@ const bookedAppointments = [
 export function AppointmentScheduler() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [formData, setFormData] = useState({
+    patient: '',
+    status: 'unconfirmed',
+    procedure: '',
+    operatory: '',
+    primaryProvider: '',
+    additionalProvider: '',
+    length: '30',
+    notes: ''
+  })
 
   const getAppointmentForSlot = (providerId, time) => {
     return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
@@ -60,6 +74,20 @@ export function AppointmentScheduler() {
 
   const handleNewAppointment = () => {
     setSelectedSlot({ providerId: providers[0].id, time: 8, date: selectedDate, appointment: null })
+    setFormData({
+      patient: '',
+      status: 'unconfirmed',
+      procedure: '',
+      operatory: '',
+      primaryProvider: providers[0].id.toString(),
+      additionalProvider: '',
+      length: '30',
+      notes: ''
+    })
+  }
+
+  const isFormValid = () => {
+    return formData.patient && formData.status && formData.procedure && formData.operatory && formData.primaryProvider && formData.length
   }
 
   const goToPreviousDay = () => {
@@ -95,9 +123,16 @@ export function AppointmentScheduler() {
               <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToPreviousDay}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToToday}>
-                <CalendarIcon className="w-4 h-4" />
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                    <CalendarIcon className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarView value={selectedDate} onChange={setSelectedDate} highlightToday={false} />
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToNextDay}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -107,7 +142,7 @@ export function AppointmentScheduler() {
         </div>
 
         <div className="flex-1 border rounded-lg overflow-auto bg-white">
-          <div className="grid grid-cols-[80px_1fr_1fr] min-w-[800px]">
+          <div className="grid min-w-[800px]" style={{ gridTemplateColumns: `80px repeat(${providers.length}, 1fr)` }}>
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white border-b p-4"></div>
             {providers.map((provider) => (
@@ -207,21 +242,26 @@ export function AppointmentScheduler() {
               </div>
 
               <div className="space-y-2">
-                <Label>Patient *</Label>
+                <Label>Patient <span className="text-red-500">*</span></Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     className="pl-9"
                     placeholder="Search patient..."
-                    defaultValue={selectedSlot.appointment?.patient}
+                    value={selectedSlot.appointment?.patient || formData.patient}
+                    onChange={(e) => setFormData({ ...formData, patient: e.target.value })}
                     disabled={!!selectedSlot.appointment}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Status *</Label>
-                <Select defaultValue={selectedSlot.appointment?.status || "unconfirmed"}>
+                <Label>Status <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedSlot.appointment?.status || formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -240,8 +280,12 @@ export function AppointmentScheduler() {
               </div>
 
               <div className="space-y-2">
-                <Label>Procedures *</Label>
-                <Select defaultValue={selectedSlot.appointment?.procedure}>
+                <Label>Procedures <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedSlot.appointment?.procedure || formData.procedure}
+                  onValueChange={(value) => setFormData({ ...formData, procedure: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select procedure" />
                   </SelectTrigger>
@@ -256,8 +300,12 @@ export function AppointmentScheduler() {
               </div>
 
               <div className="space-y-2">
-                <Label>Operatory *</Label>
-                <Select defaultValue={selectedSlot.appointment?.operatory}>
+                <Label>Operatory <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedSlot.appointment?.operatory || formData.operatory}
+                  onValueChange={(value) => setFormData({ ...formData, operatory: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select room" />
                   </SelectTrigger>
@@ -271,8 +319,12 @@ export function AppointmentScheduler() {
               </div>
 
               <div className="space-y-2">
-                <Label>Primary Provider *</Label>
-                <Select defaultValue={selectedSlot.providerId.toString()}>
+                <Label>Primary Provider <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedSlot.appointment?.providerId?.toString() || formData.primaryProvider || selectedSlot.providerId.toString()}
+                  onValueChange={(value) => setFormData({ ...formData, primaryProvider: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
@@ -288,7 +340,11 @@ export function AppointmentScheduler() {
 
               <div className="space-y-2">
                 <Label>Additional Provider (Optional)</Label>
-                <Select>
+                <Select 
+                  value={formData.additionalProvider}
+                  onValueChange={(value) => setFormData({ ...formData, additionalProvider: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select additional provider" />
                   </SelectTrigger>
@@ -303,8 +359,12 @@ export function AppointmentScheduler() {
               </div>
 
               <div className="space-y-2">
-                <Label>Length (minutes) *</Label>
-                <Select defaultValue={selectedSlot.appointment?.length?.toString() || "30"}>
+                <Label>Length (minutes) <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={selectedSlot.appointment?.length?.toString() || formData.length}
+                  onValueChange={(value) => setFormData({ ...formData, length: value })}
+                  disabled={!!selectedSlot.appointment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select duration" />
                   </SelectTrigger>
@@ -321,7 +381,13 @@ export function AppointmentScheduler() {
 
               <div className="space-y-2">
                 <Label>Notes</Label>
-                <Textarea placeholder="Add appointment notes..." rows={3} />
+                <Textarea 
+                  placeholder="Add appointment notes..." 
+                  rows={3}
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  disabled={!!selectedSlot.appointment}
+                />
               </div>
 
               <div className="pt-4 flex gap-2">
@@ -334,7 +400,7 @@ export function AppointmentScheduler() {
                   </>
                 ) : (
                   <>
-                    <Button className="w-full">Save</Button>
+                    <Button className="w-full" disabled={!isFormValid()}>Save</Button>
                     <Button variant="outline" className="w-full bg-transparent" onClick={() => setSelectedSlot(null)}>
                       Cancel
                     </Button>

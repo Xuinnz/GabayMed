@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Calendar } from "@/components/ui/calendar"
+import { CalendarView } from "@/components/calendar-view"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
@@ -143,19 +143,7 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar 
-                    mode="single" 
-                    selected={coverageStartDate} 
-                    onSelect={setCoverageStartDate}
-                    initialFocus
-                    classNames={{
-                      head_cell: "text-center w-9",
-                      cell: "text-center w-9",
-                      day: "w-9 h-9 p-0",
-                      day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
-                      day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
-                    }}
-                  />
+                  <CalendarView value={coverageStartDate} onChange={setCoverageStartDate} highlightToday={false} />
                 </PopoverContent>
               </Popover>
             </div>
@@ -170,19 +158,7 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar 
-                    mode="single" 
-                    selected={coverageEndDate} 
-                    onSelect={setCoverageEndDate}
-                    initialFocus
-                    classNames={{
-                      head_cell: "text-center w-9",
-                      cell: "text-center w-9",
-                      day: "w-9 h-9 p-0",
-                      day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
-                      day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
-                    }}
-                  />
+                  <CalendarView value={coverageEndDate} onChange={setCoverageEndDate} highlightToday={false} />
                 </PopoverContent>
               </Popover>
             </div>
@@ -198,19 +174,7 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar 
-                  mode="single" 
-                  selected={verificationDate} 
-                  onSelect={setVerificationDate}
-                  initialFocus
-                  classNames={{
-                    head_cell: "text-center w-9",
-                    cell: "text-center w-9",
-                    day: "w-9 h-9 p-0",
-                    day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 focus:text-white",
-                    day_today: "bg-blue-50 text-blue-900 font-semibold border border-blue-200"
-                  }}
-                />
+                <CalendarView value={verificationDate} onChange={setVerificationDate} highlightToday={false} />
               </PopoverContent>
             </Popover>
             <p className="text-xs text-muted-foreground">
