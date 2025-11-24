@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { DateDisplay } from "@/components/date-display"
 import { StatsCards } from "@/components/stats-cards"
@@ -6,14 +7,62 @@ import { AppointmentsList } from "@/components/appointments-list"
 import { CalendarView } from "@/components/calendar-view"
 import { RecentActivity } from "@/components/recent-activity"
 import { UpcomingSection } from "@/components/upcoming-sections"
+import { GabayAPI } from "../../services/gabayApi.js" // Adjust path if needed
+
+// TODO: Replace this with the logged-in user's facility ID
+const FACILITY_ID = "69ce8db3-fbac-4c16-94cd-d2a6f2385489";
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    appointmentsToday: 0,
+    staffPresent: 0,
+    totalIncome: 0
+  });
+  const [appointments, setAppointments] = useState([]);
+  const [upcoming, setUpcoming] = useState([]); // <--- Add State
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Fetch Stats, Schedule, and Upcoming in parallel
+        const [statsData, scheduleData, upcomingData] = await Promise.all([ // <--- Capture 3rd result
+          GabayAPI.getDashboardStats(FACILITY_ID),
+          GabayAPI.getFacilitySchedule(FACILITY_ID, today),
+          GabayAPI.getUpcomingSchedule(FACILITY_ID, today)
+        ]);
+
+        setStats(statsData);
+        setAppointments(scheduleData);
+        setUpcoming(upcomingData); // <--- Set State
+      } catch (error) {
+        console.error("Failed to load dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f9f9f9]">
       <Header />
       <main className="container mx-auto px-6 py-6">
         <DateDisplay />
-        <StatsCards />
+        
+        {/* Pass stats data to the cards */}
+        <StatsCards 
+          totalPatients={stats.totalPatients}
+          appointmentsToday={stats.appointmentsToday}
+          staffPresent={stats.staffPresent}
+          totalIncome={stats.totalIncome}
+          loading={loading}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           <div className="space-y-6">
@@ -21,12 +70,17 @@ export default function DashboardPage() {
             <RecentActivity />
           </div>
            <div className="space-y-6">
-            <AppointmentsList />
+            <AppointmentsList 
+              appointments={appointments} 
+              loading={loading}
+            />
            </div>
           <div className="space-y-6">
             <CalendarView mode="display" />
-            <UpcomingSection />
-
+            <UpcomingSection 
+              schedule={upcoming}
+              loading={loading}
+            />
           </div>
         </div>
       </main>

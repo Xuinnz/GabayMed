@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,71 @@ import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
+import { GabayAPI } from "../../services/gabayApi"
+import { POSTGabayAPI } from "../../services/postGabayApi"
 
-export function AddPatientDialog({ open, onOpenChange }) {
-  const [preferredContact, setPreferredContact] = useState("")
-    const [dob, setDob] = useState()
+export function AddPatientDialog({ open, onOpenChange, facilityId }) {
+  const [dob, setDob] = useState()
+  const [plans, setPlans] = useState([]) // Changed from carriers to plans
+  const [loading, setLoading] = useState(false)
+  
+  // Form State
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [gender, setGender] = useState("")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [address, setAddress] = useState("")
+  const [insuranceId, setInsuranceId] = useState("")
+
+  // Load Plans on Mount
+  useEffect(() => {
+    const loadPlans = async () => {
+      // Fetch Plans instead of Carriers
+      const data = await GabayAPI.getInsurancePlans();
+      setPlans(data);
+    };
+    if (open) loadPlans();
+  }, [open]);
+
+  const handleSave = async () => {
+    if (!firstName || !lastName || !dob || !gender || !phone) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    if (!facilityId) {
+      alert("Error: Facility ID is missing.");
+      return;
+    }
+
+    setLoading(true);
+    const patientData = {
+      full_name: `${firstName} ${lastName}`.trim(),
+      phone_number: phone,
+      address: address,
+      email: email,
+      date_of_birth: format(dob, "yyyy-MM-dd"),
+      gender: gender,
+      insurance_plan_id: insuranceId || null // Optional
+    };
+
+    // Pass facilityId to the API
+    const result = await POSTGabayAPI.createPatient(patientData, facilityId);
+
+    setLoading(false);
+    if (result.success) {
+      alert("Patient added successfully!");
+      onOpenChange(false);
+      // Reset Form
+      setFirstName(""); setLastName(""); setDob(null); setGender("");
+      setPhone(""); setEmail(""); setAddress(""); setInsuranceId("");
+      // Ideally, trigger a refresh of the patient list here
+      window.location.reload(); // Simple reload to show new data
+    } else {
+      alert("Error adding patient: " + result.error);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -25,11 +86,23 @@ export function AddPatientDialog({ open, onOpenChange }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName">First Name <span className="text-red-500">*</span></Label>
-              <Input id="firstName" placeholder="Enter first name" required />
+              <Input 
+                id="firstName" 
+                placeholder="Enter first name" 
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required 
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="lastName">Last Name <span className="text-red-500">*</span></Label>
-              <Input id="lastName" placeholder="Enter last name" required />
+              <Input 
+                id="lastName" 
+                placeholder="Enter last name" 
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required 
+              />
             </div>
           </div>
 
@@ -50,13 +123,13 @@ export function AddPatientDialog({ open, onOpenChange }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="sex">Sex <span className="text-red-500">*</span></Label>
-              <Select required>
+              <Select value={gender} onValueChange={setGender} required>
                 <SelectTrigger id="sex">
                   <SelectValue placeholder="Select sex" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="M">Male</SelectItem>
-                  <SelectItem value="F">Female</SelectItem>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -65,65 +138,60 @@ export function AddPatientDialog({ open, onOpenChange }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="phone">Contact Number <span className="text-red-500">*</span></Label>
-              <Input id="phone" placeholder="+63" required />
+              <Input 
+                id="phone" 
+                placeholder="+63" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required 
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="patient@example.com" />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="patient@example.com" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
-            <Textarea id="address" placeholder="Enter full address" />
+            <Textarea 
+              id="address" 
+              placeholder="Enter full address" 
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+            />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="preferredContact">Preferred Contact Method</Label>
-            <Select value={preferredContact} onValueChange={setPreferredContact}>
-              <SelectTrigger id="preferredContact">
-                <SelectValue placeholder="Select method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="phone">Phone</SelectItem>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="sms">SMS</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {preferredContact && (
-            <div className="space-y-2">
-              <Label htmlFor="preferredContactValue">
-                {preferredContact === "phone" && "Phone Number"}
-                {preferredContact === "email" && "Email Address"}
-                {preferredContact === "sms" && "Mobile Number"}
-              </Label>
-              <Input id="preferredContactValue" placeholder={`Enter ${preferredContact}`} />
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="insurance">Insurance Information</Label>
-            <Select>
+            <Select value={insuranceId} onValueChange={setInsuranceId}>
               <SelectTrigger id="insurance">
-                <SelectValue placeholder="Select insurance provider" />
+                <SelectValue placeholder="Select insurance plan" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="philhealth">PhilHealth</SelectItem>
-                <SelectItem value="maxicare">Maxicare</SelectItem>
-                <SelectItem value="philcare">Philcare</SelectItem>
-                <SelectItem value="icare">iCare</SelectItem>
+                {plans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {plan.name} <span className="text-muted-foreground text-xs ml-2">({plan.carrier})</span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={() => onOpenChange(false)}>Save Patient</Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? "Saving..." : "Save Patient"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

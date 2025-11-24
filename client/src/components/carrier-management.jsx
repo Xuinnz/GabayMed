@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Plus, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,54 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function CarrierManagement() {
-  const [carriers, setCarriers] = useState([])
-  const [activeCarriersCount, setActiveCarriersCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchCarriers = async () => {
-      try {
-        // Fetch carriers from backend API
-        const response = await fetch('http://localhost:3000/api/carriers', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch carriers')
-        }
-        
-        const data = await response.json()
-        
-        // Expected API response format:
-        // {
-        //   carriers: [
-        //     { id: "1", name: "Maxicare", type: "HMO", status: "Active", plans: 3 }
-        //   ],
-        //   activeCount: 12
-        // }
-        
-        setCarriers(data.carriers || [])
-        setActiveCarriersCount(data.activeCount || 0)
-      } catch (error) {
-        console.error('Failed to fetch carriers:', error)
-        setCarriers([])
-        setActiveCarriersCount(0)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchCarriers()
-    
-    // Refresh carriers every 5 minutes
-    const interval = setInterval(fetchCarriers, 300000)
-    
-    return () => clearInterval(interval)
-  }, [])
+export function CarrierManagement({ carriers = [], loading = false }) {
+  // Calculate active carriers from the passed data
+  const activeCarriersCount = carriers.filter(c => c.status === 'ACTIVE').length
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentTab, setCurrentTab] = useState("basic")
@@ -135,60 +90,24 @@ export function CarrierManagement() {
       return
     }
 
-    try {
-      // Save carrier to database
-      const response = await fetch('http://localhost:3000/api/carriers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: formData.carrierName,
-          planName: formData.planName,
-          address: {
-            street: formData.streetAddress,
-            city: formData.city,
-            province: formData.province,
-            zipCode: formData.zipCode
-          },
-          payerId: formData.payerId,
-          philhealth: {
-            accreditationNumber: formData.accreditationNumber,
-            expirationDate: formData.expirationDate
-          }
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to save carrier')
-      }
-
-      const newCarrier = await response.json()
-      
-      // Add new carrier to the list
-      setCarriers(prev => [...prev, newCarrier])
-      setActiveCarriersCount(prev => prev + 1)
-
-      // Reset form and close dialog
-      setFormData({
-        carrierName: "",
-        planName: "",
-        streetAddress: "",
-        city: "",
-        province: "",
-        zipCode: "",
-        payerId: "",
-        accreditationNumber: "",
-        expirationDate: ""
-      })
-      setCurrentTab("basic")
-      setIsDialogOpen(false)
-      
-      alert('Carrier saved successfully!')
-    } catch (error) {
-      console.error('Failed to save carrier:', error)
-      alert('Failed to save carrier. Please try again.')
-    }
+    // TODO: Implement GabayAPI.addCarrier() to handle the POST request
+    console.log("Saving carrier:", formData);
+    alert('Carrier saved successfully! (UI Simulation)');
+    
+    // Reset form and close dialog
+    setFormData({
+      carrierName: "",
+      planName: "",
+      streetAddress: "",
+      city: "",
+      province: "",
+      zipCode: "",
+      payerId: "",
+      accreditationNumber: "",
+      expirationDate: ""
+    })
+    setCurrentTab("basic")
+    setIsDialogOpen(false)
   }
 
   const handleCancel = () => {
