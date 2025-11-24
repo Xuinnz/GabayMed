@@ -1,10 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config';
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-// Initialize the Supabase Client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -15,10 +11,7 @@ const supabase = createClient(
 const API_BASE_URL = 'http://localhost:3000/api'; 
 
 export const GabayAPI = {
-
-  // ==========================================================================
-  // 1. AUTHENTICATION & PROFILES (Direct Supabase Calls)
-  // ==========================================================================
+  // 1. AUTH AND PROFILE
 
   /**
    * Registers a new user and creates their public profile.
@@ -27,6 +20,7 @@ export const GabayAPI = {
    * @param {string} fullName 
    * @param {string} address 
    */
+  // POST User
   async register(email, password, fullName, address) {
     try {
       // A. Create the Auth User (Standard Supabase Auth)
@@ -66,7 +60,7 @@ export const GabayAPI = {
   },
 
   /**
-   * Logs the user in.
+   * Log In
    * @returns {Promise<Object>} Session data
    */
   async login(email, password) {
@@ -80,7 +74,7 @@ export const GabayAPI = {
   },
 
   /**
-   * Logs the user out.
+   * Log Out
    */
   async logout() {
     const { error } = await supabase.auth.signOut();
@@ -88,7 +82,7 @@ export const GabayAPI = {
   },
 
   /**
-   * Fetches the user's profile data (Name, Address, Medical History link).
+   * GET User Profile
    * @param {string} userId - The UUID from the auth session
    */
   async getUserProfile(userId) {
@@ -102,9 +96,7 @@ export const GabayAPI = {
     return data;
   },
 
-  // ==========================================================================
-  // 2. AI INTELLIGENCE (Calls Vercel Backend)
-  // ==========================================================================
+  // 2. AI CHATBOT (Calls Vercel Backend)
 
   /**
    * Sends symptoms to the Llama-3 Triage endpoint.
@@ -136,9 +128,7 @@ export const GabayAPI = {
     }
   },
 
-  // ==========================================================================
   // 3. GEOLOCATION ENGINE (Calls Database RPC)
-  // ==========================================================================
 
   /**
    * Finds the nearest medical facilities based on specialization.
@@ -162,10 +152,7 @@ export const GabayAPI = {
       return []; // Return empty list gracefully so app doesn't crash
     }
   },
-
-  // ==========================================================================
   // 4. FINANCIAL TRANSPARENCY (Calls Vercel Backend)
-  // ==========================================================================
 
   /**
    * Fetches the patient's billing ledger with auto-calculated transparency.
@@ -186,5 +173,59 @@ export const GabayAPI = {
       console.error('Billing Service Error:', error);
       throw error;
     }
+  },
+
+  async getDashboardStats(facilityID){
+    const today = new Date().toISOString().split('T')[0];
+
+    try{
+        const [patients, appointments, staff, income]  = await Promise.all([
+            //Number of Appointments
+            supabase.from('appointments').select('*', {count: 'exact', head: true}).eq('facility_id', facilityID),
+            //Number of staffs
+            supabase.from('providers').select('*', {count: "exact", head: true}).eq('facility_id', facilityID),
+            //Total Income
+            supabase.from('ledger').select('total_bill_amount').eq('payment_status', 'PAID').eq('appointments.facility_id', facilityID),
+            //total patients
+            supabase.from('appointments').select('patient_id', {count: 'exact', head: true}).eq('facility_id', facilityID)
+        ]);
+        const totalIncome = income.data 
+        ? income.data.reduce((sum, row) => sum + (row.total_bill_amount || 0), 0): 0;
+
+        return {
+        totalPatients: patients.count || 0,
+        appointmentsToday: appointments.count || 0,
+        staffPresent: staff.count || 0,
+        totalIncome: totalIncome
+        };
+
+    } catch{
+        console.error("Stats Error:", error);
+        return { totalPatients: 0, appointmentsToday: 0, staffPresent: 0, totalIncome: 0 };
+    }
+  },
+
+  async getFacilitySchedule(facilityId, dateString) {
+    //get facility schedule for the day
+    const start = `${dateString}T00:00:00`;
+    const end = `${dateString}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(`
+        appointment_id,
+        appointment_date,
+        status,
+        patients ( full_name ), 
+        procedures ( name ),
+        providers ( name, specialization )
+      `)
+      .eq('facility_id', facilityId) // <--- CRITICAL FILTER
+      .gte('appointment_date', start)
+      .lte('appointment_date', end)
+      .order('appointment_date', { ascending: true });
+
+    if (error) throw error;
+    return data;
   }
 };
