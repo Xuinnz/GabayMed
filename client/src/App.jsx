@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import DashboardPage from './pages/dashboard'
 import PatientsPage from './pages/patients'
 import AppointmentsPage from './pages/appointments'
+import CarriersPage from './pages/carriers'
+import SettingsPage from './pages/settings'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard')
@@ -11,6 +13,8 @@ function App() {
     const path = window.location.pathname
     if (path === '/patients') setCurrentPage('patients')
     else if (path === '/appointments') setCurrentPage('appointments')
+    else if (path === '/carriers') setCurrentPage('carriers')
+    else if (path === '/settings') setCurrentPage('settings')
     else setCurrentPage('dashboard')
   }, [])
 
@@ -20,6 +24,8 @@ function App() {
       const path = window.location.pathname
       if (path === '/patients') setCurrentPage('patients')
       else if (path === '/appointments') setCurrentPage('appointments')
+      else if (path === '/carriers') setCurrentPage('carriers')
+      else if (path === '/settings') setCurrentPage('settings')
       else setCurrentPage('dashboard')
     }
 
@@ -37,6 +43,8 @@ function App() {
         
         if (path === '/patients') setCurrentPage('patients')
         else if (path === '/appointments') setCurrentPage('appointments')
+        else if (path === '/carriers') setCurrentPage('carriers')
+        else if (path === '/settings') setCurrentPage('settings')
         else setCurrentPage('dashboard')
       }
     }
@@ -46,10 +54,12 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {currentPage === 'dashboard' && <DashboardPage />}
       {currentPage === 'patients' && <PatientsPage />}
       {currentPage === 'appointments' && <AppointmentsPage />}
+      {currentPage === 'carriers' && <CarriersPage />}
+      {currentPage === 'settings' && <SettingsPage />}
     </div>
   )
 }
