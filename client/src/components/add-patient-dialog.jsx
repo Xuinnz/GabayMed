@@ -19,23 +19,23 @@ export function AddPatientDialog({ open, onOpenChange }) {
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="firstName">First Name</Label>
-              <Input id="firstName" placeholder="Enter first name" />
+              <Label htmlFor="firstName">First Name <span className="text-red-500">*</span></Label>
+              <Input id="firstName" placeholder="Enter first name" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input id="lastName" placeholder="Enter last name" />
+              <Label htmlFor="lastName">Last Name <span className="text-red-500">*</span></Label>
+              <Input id="lastName" placeholder="Enter last name" required />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dob">Date of Birth</Label>
-              <Input id="dob" type="date" />
+              <Label htmlFor="dob">Date of Birth <span className="text-red-500">*</span></Label>
+              <Input id="dob" type="date" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sex">Sex</Label>
-              <Select>
+              <Label htmlFor="sex">Sex <span className="text-red-500">*</span></Label>
+              <Select required>
                 <SelectTrigger id="sex">
                   <SelectValue placeholder="Select sex" />
                 </SelectTrigger>
@@ -49,8 +49,8 @@ export function AddPatientDialog({ open, onOpenChange }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone">Contact Number</Label>
-              <Input id="phone" placeholder="+63" />
+              <Label htmlFor="phone">Contact Number <span className="text-red-500">*</span></Label>
+              <Input id="phone" placeholder="+63" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
