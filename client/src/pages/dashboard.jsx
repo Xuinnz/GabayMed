@@ -9,8 +9,6 @@ import { RecentActivity } from "@/components/recent-activity"
 import { UpcomingSection } from "@/components/upcoming-sections"
 import { GabayAPI } from "../../services/gabayApi.js" // Adjust path if needed
 
-// TODO: Replace this with the logged-in user's facility ID
-const FACILITY_ID = "69ce8db3-fbac-4c16-94cd-d2a6f2385489";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -31,9 +29,9 @@ export default function DashboardPage() {
 
         // 1. Fetch Stats, Schedule, and Upcoming in parallel
         const [statsData, scheduleData, upcomingData] = await Promise.all([ // <--- Capture 3rd result
-          GabayAPI.getDashboardStats(FACILITY_ID),
-          GabayAPI.getFacilitySchedule(FACILITY_ID, today),
-          GabayAPI.getUpcomingSchedule(FACILITY_ID, today)
+          GabayAPI.getDashboardStats(),
+          GabayAPI.getFacilitySchedule(today),
+          GabayAPI.getUpcomingSchedule(today)
         ]);
 
         setStats(statsData);

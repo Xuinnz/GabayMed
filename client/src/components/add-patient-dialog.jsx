@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { GabayAPI } from "../../services/gabayApi"
 import { POSTGabayAPI } from "../../services/postGabayApi"
 
-export function AddPatientDialog({ open, onOpenChange, facilityId }) {
+export function AddPatientDialog({ open, onOpenChange }) {
   const [dob, setDob] = useState()
   const [plans, setPlans] = useState([]) // Changed from carriers to plans
   const [loading, setLoading] = useState(false)
@@ -42,11 +42,6 @@ export function AddPatientDialog({ open, onOpenChange, facilityId }) {
       return;
     }
 
-    if (!facilityId) {
-      alert("Error: Facility ID is missing.");
-      return;
-    }
-
     setLoading(true);
     const patientData = {
       full_name: `${firstName} ${lastName}`.trim(),
@@ -58,8 +53,7 @@ export function AddPatientDialog({ open, onOpenChange, facilityId }) {
       insurance_plan_id: insuranceId || null // Optional
     };
 
-    // Pass facilityId to the API
-    const result = await POSTGabayAPI.createPatient(patientData, facilityId);
+    const result = await POSTGabayAPI.createPatient(patientData);
 
     setLoading(false);
     if (result.success) {

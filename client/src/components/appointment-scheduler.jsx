@@ -1,6 +1,4 @@
-"use client"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,54 +9,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarView } from "@/components/calendar-view"
+import { CalendarView } from "@/components/calendar-view" 
 import { format } from "date-fns"
+import { appointmentAPI } from "../../services/appointment"
 
 const hours = Array.from({ length: 10 }, (_, i) => i + 8) // 8 AM to 5 PM
-const providers = [
-  { id: 1, name: "Dr. Sarah Smith", role: "Dentist", image: "/placeholder-user.jpg" },
-  { id: 2, name: "Dr. James Wilson", role: "Orthodontist", image: "/placeholder-user.jpg" },
-    { id: 3, name: "Dr. Maria Garcia", role: "Hygienist", image: "/placeholder-user.jpg" }
-]
-
-const bookedAppointments = [
-  {
-    id: 1,
-    providerId: 1,
-    time: 9,
-    patient: "Red Gabriel Tagura",
-    procedure: "Prophylaxis - Adult",
-    status: "Confirmed",
-    operatory: "Room 101",
-    length: 60,
-  },
-  {
-    id: 2,
-    providerId: 1,
-    time: 14,
-    patient: "Francis Ronan Alfaro",
-    procedure: "Extraction",
-    status: "Here",
-    operatory: "Room 102",
-    length: 90,
-  },
-  {
-    id: 3,
-    providerId: 2,
-    time: 10,
-    patient: "Tyrone Winter Tolentino",
-    procedure: "Consultation",
-    status: "Arriving",
-    operatory: "Room 103",
-    length: 30,
-  },
-]
 
 export function AppointmentScheduler() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedSlot, setSelectedSlot] = useState(null)
+  
+  // State for API Data
+  const [providers, setProviders] = useState([])
+  const [bookedAppointments, setBookedAppointments] = useState([])
+  const [procedures, setProcedures] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // Search State
+  const [patientSearchResults, setPatientSearchResults] = useState([])
+
   const [formData, setFormData] = useState({
     patient: '',
+    patientId: null, // Added to store ID
     status: 'unconfirmed',
     procedure: '',
     operatory: '',
@@ -68,14 +40,41 @@ export function AppointmentScheduler() {
     notes: ''
   })
 
+  // Fetch Data on Mount and Date Change
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const providersData = await appointmentAPI.getProviders();
+        setProviders(providersData);
+
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+
+        const proceduresData = await appointmentAPI.getProcedures();
+        setProcedures(proceduresData);
+
+      } catch (error) {
+        console.error("Failed to load scheduler data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [selectedDate]);
+
   const getAppointmentForSlot = (providerId, time) => {
     return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
   }
 
   const handleNewAppointment = () => {
+    if (providers.length === 0) return;
+    
     setSelectedSlot({ providerId: providers[0].id, time: 8, date: selectedDate, appointment: null })
     setFormData({
       patient: '',
+      patientId: null,
       status: 'unconfirmed',
       procedure: '',
       operatory: '',
@@ -86,8 +85,61 @@ export function AppointmentScheduler() {
     })
   }
 
+  // --- New Search Logic ---
+  const handlePatientSearch = async (value) => {
+    setFormData({ ...formData, patient: value, patientId: null }); // Reset ID on type
+    if (value.length > 1) {
+        const results = await appointmentAPI.searchPatients(value);
+        setPatientSearchResults(results);
+    } else {
+        setPatientSearchResults([]);
+    }
+  }
+
+  const selectPatient = (patient) => {
+      setFormData({ ...formData, patient: patient.name, patientId: patient.id });
+      setPatientSearchResults([]);
+  }
+  // ------------------------
+
+  // --- Save Logic ---
+  const handleSave = async () => {
+    if (!formData.patientId) {
+        alert("Please select a valid patient from the search results.");
+        return;
+    }
+
+    // Construct Date Time
+    const date = new Date(selectedSlot.date);
+    date.setHours(selectedSlot.time, 0, 0, 0);
+    // Adjust for timezone offset if necessary, or use local ISO
+    // For simplicity, using ISO string (UTC)
+    
+    const newAppointment = {
+        patientId: formData.patientId,
+        providerId: formData.primaryProvider,
+        procedureId: formData.procedure,
+        date: date.toISOString(),
+        duration: formData.length,
+        status: formData.status,
+        notes: formData.notes
+    };
+
+    const result = await appointmentAPI.createAppointment(newAppointment);
+    
+    if (result.success) {
+        // Refresh Grid
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+        setSelectedSlot(null); // Close panel
+    } else {
+        alert("Failed to create appointment: " + result.error);
+    }
+  }
+  // ------------------
+
   const isFormValid = () => {
-    return formData.patient && formData.status && formData.procedure && formData.operatory && formData.primaryProvider && formData.length
+    return formData.patient && formData.patientId && formData.status && formData.procedure && formData.operatory && formData.primaryProvider && formData.length
   }
 
   const goToPreviousDay = () => {
@@ -104,6 +156,10 @@ export function AppointmentScheduler() {
     const newDate = new Date(selectedDate)
     newDate.setDate(newDate.getDate() + 1)
     setSelectedDate(newDate)
+  }
+
+  if (loading && providers.length === 0) {
+    return <div className="p-8 text-center text-muted-foreground">Loading scheduler...</div>
   }
 
   return (
@@ -249,9 +305,23 @@ export function AppointmentScheduler() {
                     className="pl-9"
                     placeholder="Search patient..."
                     value={selectedSlot.appointment?.patient || formData.patient}
-                    onChange={(e) => setFormData({ ...formData, patient: e.target.value })}
+                    onChange={(e) => handlePatientSearch(e.target.value)}
                     disabled={!!selectedSlot.appointment}
                   />
+                  {/* Search Results Dropdown */}
+                  {!selectedSlot.appointment && patientSearchResults.length > 0 && (
+                      <div className="absolute z-50 w-full bg-white border rounded-md shadow-lg mt-1 max-h-40 overflow-auto">
+                          {patientSearchResults.map(p => (
+                              <div 
+                                  key={p.id} 
+                                  className="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                                  onClick={() => selectPatient(p)}
+                              >
+                                  {p.name}
+                              </div>
+                          ))}
+                      </div>
+                  )}
                 </div>
               </div>
 
@@ -266,15 +336,12 @@ export function AppointmentScheduler() {
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="unconfirmed">Unconfirmed</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="arriving">Arriving</SelectItem>
-                    <SelectItem value="here">Here</SelectItem>
-                    <SelectItem value="ready">Ready</SelectItem>
-                    <SelectItem value="chair">Chair</SelectItem>
-                    <SelectItem value="checkout">Checkout</SelectItem>
-                    <SelectItem value="complete">Complete</SelectItem>
-                    <SelectItem value="missed">Missed</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                    <SelectItem value="ONGOING">On-going</SelectItem>
+                    <SelectItem value="COMPLETED">Complete</SelectItem>
+                    <SelectItem value="MISSED">Missed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -290,11 +357,13 @@ export function AppointmentScheduler() {
                     <SelectValue placeholder="Select procedure" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Consultation">Consultation</SelectItem>
-                    <SelectItem value="Prophylaxis - Adult">Prophylaxis (Cleaning)</SelectItem>
-                    <SelectItem value="Extraction">Extraction</SelectItem>
-                    <SelectItem value="Filling">Filling</SelectItem>
-                    <SelectItem value="Root Canal">Root Canal</SelectItem>
+                    {procedures.length > 0 ? (
+                      procedures.map((proc) => (
+                        <SelectItem key={proc.id} value={proc.id.toString()}>{proc.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>No procedures found</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -400,7 +469,7 @@ export function AppointmentScheduler() {
                   </>
                 ) : (
                   <>
-                    <Button className="w-full" disabled={!isFormValid()}>Save</Button>
+                    <Button className="w-full" disabled={!isFormValid()} onClick={handleSave}>Save</Button>
                     <Button variant="outline" className="w-full bg-transparent" onClick={() => setSelectedSlot(null)}>
                       Cancel
                     </Button>

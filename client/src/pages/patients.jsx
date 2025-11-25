@@ -5,7 +5,6 @@ import { PatientsTable } from "@/components/patient-table"
 import { GabayAPI } from "../../services/gabayApi"
 
 // TODO: Replace with the logged-in user's facility ID
-const FACILITY_ID = "69ce8db3-fbac-4c16-94cd-d2a6f2385489";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
@@ -15,7 +14,7 @@ export default function PatientsPage() {
     const loadPatients = async () => {
       try {
         setLoading(true);
-        const result = await GabayAPI.getPatients(FACILITY_ID);
+        const result = await GabayAPI.getPatients();
         setPatients(result.patients);
       } catch (error) {
         console.error("Failed to load patients:", error);
@@ -33,7 +32,7 @@ export default function PatientsPage() {
       <main className="container mx-auto px-6 py-6">
         <DateDisplay />
         {/* Pass the fetched data to the table */}
-        <PatientsTable patients={patients} loading={loading} facilityId = {FACILITY_ID}/>
+        <PatientsTable patients={patients} loading={loading}/>
       </main>
     </div>
   )

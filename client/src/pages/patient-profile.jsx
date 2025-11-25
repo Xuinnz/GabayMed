@@ -1,91 +1,100 @@
 import { useState, useEffect } from "react"
-import { Phone, Mail, MapPin, Edit2, Wallet, ArrowRightFromLine } from "lucide-react"
+import { Phone, Mail, MapPin, Edit2, Wallet, ArrowRightFromLine, FileText, CreditCard, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PatientLedger } from "@/components/patient-ledger"
 import { Badge } from "@/components/ui/badge"
 import { AddInsurancePlanDialog } from "@/components/add-insurance-plan-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { profileAPI } from "../../services/profile" // Import Service
 
 export function PatientProfile({ patient }) {
   const [isAddPlanOpen, setIsAddPlanOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  
+  // Data States
   const [insurancePlans, setInsurancePlans] = useState([])
+  const [ledgerData, setLedgerData] = useState([])
+  const [clinicalNotes, setClinicalNotes] = useState([])
+  
+  // Loading States
   const [loadingPlans, setLoadingPlans] = useState(true)
-  const [patientData, setPatientData] = useState(patient || {
-    name: "Red Gabriel Tagura",
-    age: "20",
-    sex: "Male",
-    patientId: "PT-2023-8892",
-    phone: "+63 912 345 6789",
-    email: "red.tagura@email.com",
-    address: "Makati City, Philippines",
-    birthDate: "2005-01-15",
+  const [loadingLedger, setLoadingLedger] = useState(true)
+  const [loadingNotes, setLoadingNotes] = useState(true)
+
+  // Initialize state safely mapping from the Table's data structure
+  const [patientData, setPatientData] = useState({
+    id: patient?.user_id || patient?.id, 
+    name: patient?.full_name || patient?.name || "Unknown Patient",
+    age: patient?.age || "N/A",
+    sex: patient?.gender || patient?.sex || "N/A",
+    patientId: patient?.user_id || "N/A",
+    phone: patient?.phone_number || "+63 912 345 6789",
+    email: patient?.email || "no-email@example.com",
+    address: patient?.address || "No address provided",
+    birthDate: patient?.date_of_birth || "2000-01-01",
     emergencyContact: "",
     emergencyPhone: ""
   })
+  
   const [editFormData, setEditFormData] = useState({ ...patientData })
 
-  // Fetch full patient details from API
+  // 1. Load All Patient Data
   useEffect(() => {
-    if (patient?.id) {
-      fetch(`http://localhost:3000/api/patients/${patient.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.patient) {
-            setPatientData(data.patient)
-            setEditFormData(data.patient)
-          }
-        })
-        .catch(err => console.error('Failed to fetch patient details:', err))
-    }
-  }, [patient?.id])
+    const loadData = async () => {
+      if (!patientData.id) return;
 
-  // Fetch insurance plans
-  const fetchInsurancePlans = () => {
-    if (patientData.id) {
-      setLoadingPlans(true)
-      fetch(`http://localhost:3000/api/patients/${patientData.id}/insurance`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.plans) {
-            setInsurancePlans(data.plans)
-          }
-          setLoadingPlans(false)
-        })
-        .catch(err => {
-          console.error('Failed to fetch insurance plans:', err)
-          setLoadingPlans(false)
-        })
-    }
+      // A. Fetch Profile Details
+      const profile = await profileAPI.getPatientDetails(patientData.id);
+      if (profile) {
+        setPatientData(prev => ({ ...prev, ...profile }));
+        setEditFormData(prev => ({ ...prev, ...profile }));
+      }
+
+      // B. Fetch Insurance
+      setLoadingPlans(true);
+      const plans = await profileAPI.getInsurancePlans(patientData.id);
+      setInsurancePlans(plans);
+      setLoadingPlans(false);
+
+      // C. Fetch Ledger
+      setLoadingLedger(true);
+      const ledger = await profileAPI.getPatientLedger(patientData.id);
+      setLedgerData(ledger);
+      setLoadingLedger(false);
+
+      // D. Fetch Notes
+      setLoadingNotes(true);
+      const notes = await profileAPI.getClinicalNotes(patientData.id);
+      setClinicalNotes(notes);
+      setLoadingNotes(false);
+    };
+
+    loadData();
+  }, [patientData.id]);
+
+  // Refresh helper for Insurance
+  const refreshInsurance = async () => {
+    setLoadingPlans(true);
+    const plans = await profileAPI.getInsurancePlans(patientData.id);
+    setInsurancePlans(plans);
+    setLoadingPlans(false);
   }
 
-  useEffect(() => {
-    fetchInsurancePlans()
-  }, [patientData.id])
-
+  // 2. Handle Profile Update
   const handleEditSave = async () => {
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${patientData.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editFormData)
-      })
-      const data = await response.json()
-      if (data.patient) {
-        // Update both patientData and editFormData to ensure UI reflects changes
-        setPatientData(data.patient)
-        setEditFormData(data.patient)
-        setIsEditDialogOpen(false)
-      }
-    } catch (err) {
-      console.error('Failed to update patient:', err)
-      alert('Failed to update patient profile. Please try again.')
+    const result = await profileAPI.updatePatient(patientData.id, editFormData);
+    
+    if (result.success) {
+      setPatientData({ ...editFormData });
+      setIsEditDialogOpen(false);
+    } else {
+      alert('Failed to update patient profile: ' + result.error);
     }
   }
   
@@ -96,12 +105,13 @@ export function PatientProfile({ patient }) {
            editFormData.sex
   }
 
-  // Get initials for avatar
   const getInitials = (name) => {
+    if (!name) return "P";
     return name
       .split(" ")
       .map(n => n[0])
       .join("")
+      .substring(0, 2)
   }
 
   return (
@@ -111,7 +121,7 @@ export function PatientProfile({ patient }) {
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row items-start gap-6">
             <Avatar className="w-24 h-24 border-4 border-white shadow-lg">
-              <AvatarImage src={`/.jpg?height=96&width=96&query=${patientData.name}`} />
+              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${patientData.name}`} />
               <AvatarFallback>{getInitials(patientData.name)}</AvatarFallback>
             </Avatar>
 
@@ -122,9 +132,9 @@ export function PatientProfile({ patient }) {
                   <div className="flex items-center gap-2 text-muted-foreground mt-1">
                     <span>{patientData.age} Years Old</span>
                     <span>•</span>
-                    <span>{patientData.sex === 'M' ? 'Male' : patientData.sex === 'F' ? 'Female' : patientData.sex}</span>
+                    <span>{patientData.sex === 'M' || patientData.sex === 'Male' ? 'Male' : 'Female'}</span>
                     <span>•</span>
-                    <span>ID: {patientData.patientId}</span>
+                    <span className="font-mono text-xs">ID: {patientData.patientId.substring(0,8)}...</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -214,10 +224,52 @@ export function PatientProfile({ patient }) {
           </div>
         </TabsContent>
 
+        {/* LEDGER TAB */}
         <TabsContent value="ledger">
-          <PatientLedger patientId={patientData.id} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Financial History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingLedger ? (
+                <div className="text-sm text-muted-foreground">Loading ledger...</div>
+              ) : ledgerData.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No transactions found.</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ledgerData.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-medium">{item.description}</TableCell>
+                        <TableCell>
+                          <Badge variant={item.status === 'PAID' ? 'default' : 'destructive'}>
+                            {item.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="capitalize">{item.method || '-'}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          ₱{item.amount?.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
+        {/* INSURANCE TAB */}
         <TabsContent value="insurance">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -259,10 +311,6 @@ export function PatientProfile({ patient }) {
                             <span className="ml-2">{new Date(plan.coverageEndDate).toLocaleDateString()}</span>
                           </div>
                         )}
-                        <div>
-                          <span className="text-muted-foreground">Last Verified:</span>
-                          <span className="ml-2">{plan.verificationDate ? new Date(plan.verificationDate).toLocaleDateString() : 'N/A'}</span>
-                        </div>
                       </div>
                       {plan.notes && (
                         <div className="mt-3 pt-3 border-t">
@@ -276,13 +324,57 @@ export function PatientProfile({ patient }) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* CLINICAL NOTES TAB */}
+        <TabsContent value="notes">
+          <Card>
+            <CardHeader>
+              <CardTitle>Clinical Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingNotes ? (
+                <div className="text-sm text-muted-foreground">Loading notes...</div>
+              ) : clinicalNotes.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No clinical notes found.</div>
+              ) : (
+                <div className="space-y-6">
+                  {clinicalNotes.map((note) => (
+                    <div key={note.id} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-2" />
+                        <div className="w-0.5 flex-1 bg-blue-100 my-1" />
+                      </div>
+                      <div className="flex-1 space-y-2 pb-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium text-sm">
+                              {new Date(note.date).toLocaleDateString()}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(note.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </span>
+                          </div>
+                          <Badge variant="outline">{note.provider}</Badge>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
+                          {note.note}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <AddInsurancePlanDialog 
         open={isAddPlanOpen} 
         onOpenChange={setIsAddPlanOpen}
         patientId={patientData.id}
-        onPlanAdded={fetchInsurancePlans}
+        onPlanAdded={refreshInsurance}
       />
 
       {/* Edit Profile Dialog */}
@@ -377,26 +469,6 @@ export function PatientProfile({ patient }) {
                 onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                 placeholder="Full address"
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
-                <Input
-                  id="emergencyContact"
-                  value={editFormData.emergencyContact || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, emergencyContact: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
-                <Input
-                  id="emergencyPhone"
-                  value={editFormData.emergencyPhone || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, emergencyPhone: e.target.value })}
-                  placeholder="+63 XXX XXX XXXX"
-                />
-              </div>
             </div>
 
             <div className="flex gap-2 justify-end mt-4">

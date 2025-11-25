@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Session } from './session'; // Import Session Service
 
 // Helper to get env vars in both Vite (Frontend) and Node (Test Script)
 const getEnv = (key) => {
@@ -191,28 +192,48 @@ export const GabayAPI = {
     }
   },
   //GET Dashboard
-  async getDashboardStats(facilityID){
+  async getDashboardStats(){ // Removed facilityID param
+    const facilityID = Session.getFacilityId(); // Get from Session
     const today = new Date().toISOString().split('T')[0];
+    const start = `${today}T00:00:00`;
+    const end = `${today}T23:59:59`;
 
     try{
         const [appointments, staff, income, patients]  = await Promise.all([
-            //Number of Appointments
-            supabase.from('appointments').select('*', {count: 'exact', head: true}).eq('facility_id', facilityID),
-            //Number of staffs
+            // 1. Number of Appointments TODAY
+            supabase
+                .from('appointments')
+                .select('*', {count: 'exact', head: true})
+                .eq('facility_id', facilityID)
+                .gte('appointment_date', start)
+                .lte('appointment_date', end),
+
+            // 2. Number of staffs
             supabase.from('providers').select('*', {count: "exact", head: true}).eq('facility_id', facilityID),
-            //Total Income
-            supabase.from('ledger').select('total_bill_amount').eq('payment_status', 'PAID').eq('appointments.facility_id', facilityID),
-            //total patients
-            supabase.from('appointments').select('patient_id', {count: 'exact', head: true}).eq('facility_id', facilityID)
+            
+            // 3. Total Income
+            // We use !inner to ensure we only get ledger entries linked to appointments at this facility
+            supabase
+                .from('ledger')
+                .select('total_bill_amount, appointments!inner(facility_id)')
+                .eq('payment_status', 'PAID')
+                .eq('appointments.facility_id', facilityID),
+
+            // 4. Total Patients (From Patients Table)
+            supabase
+                .from('patients')
+                .select('*', {count: 'exact', head: true})
+                .eq('facility_id', facilityID)
         ]);
+
         const totalIncome = income.data 
         ? income.data.reduce((sum, row) => sum + (row.total_bill_amount || 0), 0): 0;
 
         return {
-        totalPatients: patients.count || 0,
-        appointmentsToday: appointments.count || 0,
-        staffPresent: staff.count || 0,
-        totalIncome: totalIncome
+            totalPatients: patients.count || 0,
+            appointmentsToday: appointments.count || 0,
+            staffPresent: staff.count || 0,
+            totalIncome: totalIncome
         };
 
     } catch (error) {
@@ -222,7 +243,8 @@ export const GabayAPI = {
   },
 
   //GET All Schedule
-  async getFacilitySchedule(facilityId, dateString) {
+  async getFacilitySchedule(dateString) { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
     //get facility schedule for the day
     const start = `${dateString}T00:00:00`;
     const end = `${dateString}T23:59:59`;
@@ -247,7 +269,8 @@ export const GabayAPI = {
   },
 
   //GET Upcoming Schedule
-  async getUpcomingSchedule(facilityId, dateString) {
+  async getUpcomingSchedule(dateString) { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
     
     const startDate = new Date(dateString);
     const futureDate = new Date(startDate);
@@ -288,7 +311,8 @@ export const GabayAPI = {
   },
 
   //GET Patients
-  async getPatients(facilityId) {
+  async getPatients() { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
     try {
       // 1. Fetch ALL patients linked to this facility
       // REMOVED: .eq('appointments.status', 'COMPLETED') to prevent hiding patients
@@ -358,8 +382,7 @@ export const GabayAPI = {
   // GET Insurance Carriers
   async getCarriers() {
     try {
-      // We select carrier details and use the Foreign Key relationship 
-      // to count the rows in 'insurance_plans' linked to each carrier.
+      // We select carrier details and the actual insurance plans data
       const { data, error } = await supabase
         .from('carrier')
         .select(`
@@ -368,7 +391,10 @@ export const GabayAPI = {
           address,
           status,
           type,
-          insurance_plans ( count )
+          insurance_plans (
+            plan_id,
+            plan_name
+          )
         `);
 
       if (error) throw error;
@@ -380,8 +406,10 @@ export const GabayAPI = {
         address: carrier.address,
         status: carrier.status,
         type: carrier.type,
-        // Supabase returns the count relation as an array: [{ count: 5 }]
-        plans: carrier.insurance_plans?.[0]?.count || 0
+        // 1. The Count (Calculated from the array length)
+        plans: carrier.insurance_plans?.length || 0,
+        // 2. The Actual Data (Array of plans)
+        insurance_plans: carrier.insurance_plans || []
       }));
 
     } catch (error) {
@@ -414,4 +442,28 @@ export const GabayAPI = {
       return [];
     }
   },
+
+  // ADD Patient Insurance
+  async addPatientInsurance(patientId, planData) {
+    try {
+      const { error } = await supabase
+        .from('patient_insurance')
+        .insert([{
+          patient_id: patientId,
+          plan_id: planData.planId,
+          subscriber_id: planData.subscriberId,
+          coverage_type: planData.coverageType,
+          coverage_start_date: planData.coverageStartDate,
+          coverage_end_date: planData.coverageEndDate,
+          notes: planData.notes,
+          status: 'active'
+        }]);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error("Add Insurance Error:", error.message);
+      return { success: false, error: error.message };
+    }
+  }
 };

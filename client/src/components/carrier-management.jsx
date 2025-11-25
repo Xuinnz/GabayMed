@@ -299,8 +299,8 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                 <DialogTitle>Add Insurance Plan</DialogTitle>
               </DialogHeader>
               <div className="space-y-6 py-4">
-                {/* Plan Details Section */}
-                <div className="space-y-4">
+                 {/* Plan Details Section */}
+                 <div className="space-y-4">
                   <h3 className="font-semibold text-sm">Plan Details</h3>
                   <div className="space-y-2">
                     <Label>Plan Name <span className="text-red-500">*</span></Label>
@@ -427,12 +427,15 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                   </TableRow>
                 </TableHeader>
               <TableBody>
-                {carrierPlans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell className="font-medium">{plan.planName}</TableCell>
+                {/* FIX: Use selectedCarrier.insurance_plans instead of static carrierPlans */}
+                {selectedCarrier.insurance_plans && selectedCarrier.insurance_plans.length > 0 ? (
+                  selectedCarrier.insurance_plans.map((plan) => (
+                  <TableRow key={plan.plan_id}>
+                    <TableCell className="font-medium">{plan.plan_name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                        {plan.type}
+                        {/* Default to Medical if type is not in API response yet */}
+                        {plan.type || "Medical"} 
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -456,7 +459,8 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                               <h3 className="font-semibold text-sm">Plan Details</h3>
                               <div className="space-y-2">
                                 <Label>Plan Name <span className="text-red-500">*</span></Label>
-                                <Input placeholder="e.g. Standard Corporate Plan" defaultValue={plan.planName} />
+                                {/* FIX: Use plan.plan_name from API */}
+                                <Input placeholder="e.g. Standard Corporate Plan" defaultValue={plan.plan_name} />
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -489,7 +493,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Type <span className="text-red-500">*</span></Label>
-                                  <Select defaultValue={plan.type.toLowerCase()}>
+                                  <Select defaultValue="medical">
                                     <SelectTrigger>
                                       <SelectValue placeholder="Select type" />
                                     </SelectTrigger>
@@ -569,7 +573,14 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                       </Dialog>
                     </TableCell>
                   </TableRow>
-                ))}
+                ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      No plans found for this carrier.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

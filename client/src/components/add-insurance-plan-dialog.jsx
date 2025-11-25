@@ -9,10 +9,11 @@ import { CalendarView } from "@/components/calendar-view"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
+import { GabayAPI } from "../../services/gabayApi" // Import GabayAPI
 
 export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAdded }) {
   const [formData, setFormData] = useState({
-    carrier: '',
+    planId: '', // Changed from carrier string to planId
     subscriberId: '',
     coverageType: '',
     notes: ''
@@ -20,12 +21,24 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
   const [coverageStartDate, setCoverageStartDate] = useState()
   const [coverageEndDate, setCoverageEndDate] = useState()
   const [verificationDate, setVerificationDate] = useState()
+  
+  // State for Dropdown Options
+  const [availablePlans, setAvailablePlans] = useState([])
+
+  // Load Plans on Mount using GabayAPI
+  useEffect(() => {
+    const loadPlans = async () => {
+      const plans = await GabayAPI.getInsurancePlans();
+      setAvailablePlans(plans);
+    };
+    loadPlans();
+  }, [])
 
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
       setFormData({
-        carrier: '',
+        planId: '',
         subscriberId: '',
         coverageType: '',
         notes: ''
@@ -37,7 +50,7 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
   }, [open])
 
   const isFormValid = () => {
-    return formData.carrier && 
+    return formData.planId && 
            formData.subscriberId && 
            formData.coverageType && 
            coverageStartDate &&
@@ -47,27 +60,23 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
   const handleSubmit = async () => {
     if (!isFormValid()) return
 
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${patientId}/insurance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          coverageStartDate: coverageStartDate?.toISOString(),
-          coverageEndDate: coverageEndDate?.toISOString(),
-          verificationDate: verificationDate?.toISOString()
-        })
-      })
+    const payload = {
+      ...formData,
+      coverageStartDate: coverageStartDate?.toISOString(),
+      coverageEndDate: coverageEndDate?.toISOString(),
+      verificationDate: verificationDate?.toISOString()
+    }
 
-      if (response.ok) {
-        onOpenChange(false)
-        if (onPlanAdded) {
-          onPlanAdded() // Refresh insurance plans list
-        }
+    // Use GabayAPI instead of fetch
+    const result = await GabayAPI.addPatientInsurance(patientId, payload)
+
+    if (result.success) {
+      onOpenChange(false)
+      if (onPlanAdded) {
+        onPlanAdded() // Refresh insurance plans list
       }
-    } catch (err) {
-      console.error('Failed to add insurance plan:', err)
-      alert('Failed to add insurance plan. Please try again.')
+    } else {
+      alert('Failed to add insurance plan: ' + result.error)
     }
   }
 
@@ -83,19 +92,22 @@ export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAd
           <div className="space-y-2">
             <Label htmlFor="carrier">Insurance Carrier / Plan Name <span className="text-red-500">*</span></Label>
             <Select
-              value={formData.carrier}
-              onValueChange={(value) => setFormData({ ...formData, carrier: value })}
+              value={formData.planId}
+              onValueChange={(value) => setFormData({ ...formData, planId: value })}
             >
               <SelectTrigger id="carrier">
                 <SelectValue placeholder="Select carrier" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="philhealth">PhilHealth</SelectItem>
-                <SelectItem value="maxicare">Maxicare</SelectItem>
-                <SelectItem value="philcare">Philcare</SelectItem>
-                <SelectItem value="icare">iCare</SelectItem>
-                <SelectItem value="medicard">Medicard</SelectItem>
-                <SelectItem value="valucare">Valucare</SelectItem>
+                {availablePlans.length > 0 ? (
+                  availablePlans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id.toString()}>
+                      {plan.carrier} - {plan.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>No plans available</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

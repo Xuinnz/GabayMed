@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Session } from './session'; // Import Session Service
 
 // Helper to get env vars in both Vite (Frontend) and Node (Test Script)
 const getEnv = (key) => {
@@ -28,7 +29,9 @@ const API_BASE_URL = 'http://localhost:3000/api';
 
 export const POSTGabayAPI = {
   
-  async createPatient(patientData, facilityId) { // Added facilityId parameter
+  async createPatient(patientData) { // Removed facilityId parameter
+    const facilityId = Session.getFacilityId(); // Get from Session
+
     const {
       // Profile Fields
       full_name,
@@ -42,6 +45,11 @@ export const POSTGabayAPI = {
     } = patientData;
 
     try {
+      // VALIDATION: Ensure facilityId is present
+      if (!facilityId) {
+        throw new Error("Facility ID is required to create a patient.");
+      }
+
       // 1. Insert into Profiles
       // This will fire your DB trigger to create the empty patient row
       const { data: profile, error: profileError } = await supabase
