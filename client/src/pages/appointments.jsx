@@ -5,7 +5,7 @@ export default function AppointmentsPage() {
   return (
     <div className="min-h-screen bg-[#f9f9f9]">
       <Header />
-      <main className="container mx-auto px-6 py-6">
+      <main className="container mx-auto px-6 py-6 -mt-8">
         <AppointmentScheduler />
       </main>
     </div>

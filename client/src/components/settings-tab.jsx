@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Building2 } from "lucide-react"
+import { Building2, Plus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,9 +14,14 @@ export function SettingsTabs() {
   const [activeTab, setActiveTab] = useState('users')
   const [users, setUsers] = useState([])
   const [procedures, setProcedures] = useState([])
+  const [feeSchedules, setFeeSchedules] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [loadingProcedures, setLoadingProcedures] = useState(true)
+  const [loadingFeeSchedules, setLoadingFeeSchedules] = useState(false)
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
+  const [feeScheduleDialog, setFeeScheduleDialog] = useState(false)
+  const [editFeeScheduleDialog, setEditFeeScheduleDialog] = useState(false)
+  const [editingScheduleId, setEditingScheduleId] = useState(null)
   const [userFormData, setUserFormData] = useState({
     name: '',
     email: '',
@@ -25,6 +30,18 @@ export function SettingsTabs() {
     licenseNo: '',
     schedule: '',
     avatar: ''
+  })
+  const [locationData, setLocationData] = useState({
+    clinicName: '',
+    abbreviation: '',
+    address: '',
+    phone: '',
+    email: '',
+    timezone: 'Asia/Manila'
+  })
+  const [feeScheduleFormData, setFeeScheduleFormData] = useState({
+    scheduleName: '',
+    procedureFees: []
   })
 
   // Check URL for tab parameter
@@ -60,6 +77,16 @@ export function SettingsTabs() {
         const response = await fetch('http://localhost:3000/api/procedures')
         const data = await response.json()
         setProcedures(data.procedures || [])
+        // Initialize fee schedule form with procedures
+        setFeeScheduleFormData(prev => ({
+          ...prev,
+          procedureFees: data.procedures?.map(p => ({
+            code: p.code,
+            name: p.description,
+            originalFee: p.officeFee,
+            scheduleFee: p.officeFee
+          })) || []
+        }))
       } catch (error) {
         console.error('Failed to fetch procedures:', error)
       } finally {
@@ -68,6 +95,40 @@ export function SettingsTabs() {
     }
 
     fetchProcedures()
+  }, [])
+
+  // Fetch fee schedules
+  useEffect(() => {
+    const fetchFeeSchedules = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/fee-schedules')
+        const data = await response.json()
+        setFeeSchedules(data.feeSchedules || [])
+      } catch (error) {
+        console.error('Failed to fetch fee schedules:', error)
+      } finally {
+        setLoadingFeeSchedules(false)
+      }
+    }
+
+    fetchFeeSchedules()
+  }, [])
+
+  // Fetch location data
+  useEffect(() => {
+    const fetchLocation = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/location')
+        const data = await response.json()
+        if (data.location) {
+          setLocationData(data.location)
+        }
+      } catch (error) {
+        console.error('Failed to fetch location:', error)
+      }
+    }
+
+    fetchLocation()
   }, [])
 
   // Helper function to get initials from name
@@ -96,22 +157,38 @@ export function SettingsTabs() {
     }))
   }
 
+  // Handle location form input changes
+  const handleLocationInputChange = (field, value) => {
+    setLocationData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Handle fee schedule form input changes
+  const handleFeeScheduleInputChange = (field, value) => {
+    setFeeScheduleFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Update procedure fee in fee schedule form
+  const updateProcedureFee = (code, newFee) => {
+    setFeeScheduleFormData(prev => ({
+      ...prev,
+      procedureFees: prev.procedureFees.map(p =>
+        p.code === code ? { ...p, scheduleFee: parseFloat(newFee) || p.originalFee } : p
+      )
+    }))
+  }
+
   // Validate user form
   const isUserFormValid = () => {
-    const isValid = userFormData.name.trim().length >= 2 &&
+    return userFormData.name.trim().length >= 2 &&
            userFormData.email.trim().length > 0 &&
            userFormData.password.trim().length >= 6 &&
            userFormData.role.length > 0
-    
-    console.log('Form validation:', {
-      name: userFormData.name.trim().length >= 2,
-      email: userFormData.email.trim().length > 0,
-      password: userFormData.password.trim().length >= 6,
-      role: userFormData.role.length > 0,
-      isValid
-    })
-    
-    return isValid
   }
 
   // Handle save new user
@@ -157,8 +234,129 @@ export function SettingsTabs() {
     }
   }
 
+  // Handle save location
+  const handleSaveLocation = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/location', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(locationData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save location')
+      }
+
+      alert('Location updated successfully!')
+    } catch (error) {
+      console.error('Error saving location:', error)
+      alert('Failed to save location. Please try again.')
+    }
+  }
+
+  // Handle save fee schedule
+  const handleSaveFeeSchedule = async () => {
+    if (!feeScheduleFormData.scheduleName.trim()) {
+      alert('Please enter a schedule name.')
+      return
+    }
+
+    try {
+      const response = await fetch('http://localhost:3000/api/fee-schedules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(feeScheduleFormData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create fee schedule')
+      }
+
+      const result = await response.json()
+      
+      // Add new fee schedule to the list
+      setFeeSchedules(prev => [...prev, result.feeSchedule])
+      
+      // Reset form and close dialog
+      setFeeScheduleFormData({
+        scheduleName: '',
+        procedureFees: procedures.map(p => ({
+          code: p.code,
+          name: p.description,
+          originalFee: p.officeFee,
+          scheduleFee: p.officeFee
+        }))
+      })
+      setFeeScheduleDialog(false)
+      alert('Fee schedule created successfully!')
+    } catch (error) {
+      console.error('Error creating fee schedule:', error)
+      alert('Failed to create fee schedule. Please try again.')
+    }
+  }
+
+  // Handle open edit fee schedule dialog
+  const handleOpenEditFeeSchedule = (schedule) => {
+    setEditingScheduleId(schedule.id)
+    setFeeScheduleFormData({
+      scheduleName: schedule.scheduleName,
+      procedureFees: schedule.procedureFees.map(p => ({ ...p }))
+    })
+    setEditFeeScheduleDialog(true)
+  }
+
+  // Handle update fee schedule
+  const handleUpdateFeeSchedule = async () => {
+    if (!feeScheduleFormData.scheduleName.trim()) {
+      alert('Please enter a schedule name.')
+      return
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/fee-schedules/${editingScheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(feeScheduleFormData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update fee schedule')
+      }
+
+      const result = await response.json()
+      
+      // Update fee schedule in the list
+      setFeeSchedules(prev => prev.map(fs => 
+        fs.id === editingScheduleId ? result.feeSchedule : fs
+      ))
+      
+      // Reset form and close dialog
+      setFeeScheduleFormData({
+        scheduleName: '',
+        procedureFees: procedures.map(p => ({
+          code: p.code,
+          name: p.description,
+          originalFee: p.officeFee,
+          scheduleFee: p.officeFee
+        }))
+      })
+      setEditingScheduleId(null)
+      setEditFeeScheduleDialog(false)
+      alert('Fee schedule updated successfully!')
+    } catch (error) {
+      console.error('Error updating fee schedule:', error)
+      alert('Failed to update fee schedule. Please try again.')
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 -mt-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-muted-foreground">Manage your clinic configuration and preferences</p>
@@ -367,31 +565,51 @@ export function SettingsTabs() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Clinic Name <span className="text-red-500">*</span></Label>
-                  <Input defaultValue="Metropolitan Medical Center" required />
+                  <Input 
+                    value={locationData.clinicName} 
+                    onChange={(e) => handleLocationInputChange('clinicName', e.target.value)}
+                    required 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Abbreviation</Label>
-                  <Input defaultValue="MMC-01" />
+                  <Input 
+                    value={locationData.abbreviation} 
+                    onChange={(e) => handleLocationInputChange('abbreviation', e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Address <span className="text-red-500">*</span></Label>
-                  <Input defaultValue="123 Medical Plaza, Makati City" required />
+                  <Input 
+                    value={locationData.address} 
+                    onChange={(e) => handleLocationInputChange('address', e.target.value)}
+                    required 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Phone <span className="text-red-500">*</span></Label>
-                  <Input defaultValue="+63 2 8123 4567" required />
+                  <Input 
+                    value={locationData.phone} 
+                    onChange={(e) => handleLocationInputChange('phone', e.target.value)}
+                    required 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Email <span className="text-red-500">*</span></Label>
-                  <Input type="email" defaultValue="info@metromedical.ph" required />
+                  <Input 
+                    type="email" 
+                    value={locationData.email} 
+                    onChange={(e) => handleLocationInputChange('email', e.target.value)}
+                    required 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Timezone</Label>
-                  <Input defaultValue="Asia/Manila" disabled />
+                  <Input value={locationData.timezone} disabled />
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button className="bg-blue-500">Save Changes</Button>
+                <Button className="bg-blue-500" onClick={handleSaveLocation}>Save Changes</Button>
               </div>
             </CardContent>
           </Card>
@@ -461,8 +679,142 @@ export function SettingsTabs() {
                 <CardTitle>Fee Schedules</CardTitle>
                 <CardDescription>Manage different fee structures for insurance plans</CardDescription>
               </div>
-              <Button className="bg-blue-500">Add Fee Schedule</Button>
+              <Button className="bg-blue-500" onClick={() => setFeeScheduleDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Fee Schedule
+              </Button>
             </CardHeader>
+            
+            <Dialog open={feeScheduleDialog} onOpenChange={setFeeScheduleDialog}>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create Fee Schedule</DialogTitle>
+                </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid gap-2">
+                      <Label>Schedule Name <span className="text-red-500">*</span></Label>
+                      <Input 
+                        placeholder="e.g. Maxicare Standard" 
+                        value={feeScheduleFormData.scheduleName}
+                        onChange={(e) => handleFeeScheduleInputChange('scheduleName', e.target.value)}
+                      />
+                    </div>
+                    <div className="border rounded-lg p-4 bg-slate-50">
+                      <h4 className="font-medium mb-4">Procedure Fees</h4>
+                      <div className="text-sm text-muted-foreground mb-3">
+                        Original Fees are based on your office fee schedule. Edit the Fee Schedule column to set
+                        insurance-specific rates.
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Procedure Name</TableHead>
+                            <TableHead className="text-right">Original Fee</TableHead>
+                            <TableHead className="text-right">Fee Schedule</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {feeScheduleFormData.procedureFees.slice(0, 5).map((procedure) => (
+                            <TableRow key={procedure.code}>
+                              <TableCell className="font-mono">{procedure.code}</TableCell>
+                              <TableCell>{procedure.name}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(procedure.originalFee)}</TableCell>
+                              <TableCell className="text-right">
+                                <Input 
+                                  className="h-8 text-right" 
+                                  value={procedure.scheduleFee}
+                                  onChange={(e) => updateProcedureFee(procedure.code, e.target.value)}
+                                  type="number"
+                                  step="0.01"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {feeScheduleFormData.procedureFees.length > 5 && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                                + {feeScheduleFormData.procedureFees.length - 5} more procedures
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button variant="outline" onClick={() => setFeeScheduleDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button className="bg-blue-500" onClick={handleSaveFeeSchedule}>
+                        Create Schedule
+                      </Button>
+                    </div>
+                  </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit Fee Schedule Dialog */}
+            <Dialog open={editFeeScheduleDialog} onOpenChange={setEditFeeScheduleDialog}>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Fee Schedule</DialogTitle>
+                </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid gap-2">
+                      <Label>Schedule Name <span className="text-red-500">*</span></Label>
+                      <Input 
+                        placeholder="e.g. Maxicare Standard" 
+                        value={feeScheduleFormData.scheduleName}
+                        onChange={(e) => handleFeeScheduleInputChange('scheduleName', e.target.value)}
+                      />
+                    </div>
+                    <div className="border rounded-lg p-4 bg-slate-50">
+                      <h4 className="font-medium mb-4">Procedure Fees</h4>
+                      <div className="text-sm text-muted-foreground mb-3">
+                        Original Fees are based on your office fee schedule. Edit the Fee Schedule column to set
+                        insurance-specific rates.
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Procedure Name</TableHead>
+                            <TableHead className="text-right">Original Fee</TableHead>
+                            <TableHead className="text-right">Fee Schedule</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {feeScheduleFormData.procedureFees.map((procedure) => (
+                            <TableRow key={procedure.code}>
+                              <TableCell className="font-mono">{procedure.code}</TableCell>
+                              <TableCell>{procedure.name}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(procedure.originalFee)}</TableCell>
+                              <TableCell className="text-right">
+                                <Input 
+                                  className="h-8 text-right" 
+                                  value={procedure.scheduleFee}
+                                  onChange={(e) => updateProcedureFee(procedure.code, e.target.value)}
+                                  type="number"
+                                  step="0.01"
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button variant="outline" onClick={() => setEditFeeScheduleDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button className="bg-blue-500" onClick={handleUpdateFeeSchedule}>
+                        Update Schedule
+                      </Button>
+                    </div>
+                  </div>
+              </DialogContent>
+            </Dialog>
+            
             <CardContent>
               <Table>
                 <TableHeader>
@@ -474,26 +826,32 @@ export function SettingsTabs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">Standard Fee Schedule</TableCell>
-                    <TableCell>Maxicare, Philcare</TableCell>
-                    <TableCell>156 procedures</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">PhilHealth Case Rates</TableCell>
-                    <TableCell>PhilHealth</TableCell>
-                    <TableCell>89 procedures</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                  {loadingFeeSchedules ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        Loading fee schedules...
+                      </TableCell>
+                    </TableRow>
+                  ) : feeSchedules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No fee schedules found. Click "Add Fee Schedule" to get started.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    feeSchedules.map((schedule) => (
+                      <TableRow key={schedule.id}>
+                        <TableCell className="font-medium">{schedule.scheduleName}</TableCell>
+                        <TableCell>{schedule.associatedPlans || 'N/A'}</TableCell>
+                        <TableCell>{schedule.procedureFees?.length || 0} procedures</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenEditFeeSchedule(schedule)}>
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

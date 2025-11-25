@@ -38,7 +38,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#f9f9f9]">
       <Header />
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-8 -mt-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="flex items-center gap-4 mb-6">
             <Avatar className="w-20 h-20">
