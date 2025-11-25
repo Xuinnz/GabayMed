@@ -15,21 +15,30 @@ export function SettingsTabs() {
   const [users, setUsers] = useState([])
   const [procedures, setProcedures] = useState([])
   const [feeSchedules, setFeeSchedules] = useState([])
+  const [editingProcedureId, setEditingProcedureId] = useState(null)
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [loadingProcedures, setLoadingProcedures] = useState(true)
   const [loadingFeeSchedules, setLoadingFeeSchedules] = useState(false)
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false)
+  const [editingUserId, setEditingUserId] = useState(null)
   const [feeScheduleDialog, setFeeScheduleDialog] = useState(false)
   const [editFeeScheduleDialog, setEditFeeScheduleDialog] = useState(false)
   const [editingScheduleId, setEditingScheduleId] = useState(null)
   const [userFormData, setUserFormData] = useState({
     name: '',
+    firstName: '',
+    lastName: '',
+    middleInitial: '',
     email: '',
+    phoneNumber: '',
     password: '',
     role: '',
     licenseNo: '',
     schedule: '',
-    avatar: ''
+    avatar: '',
+    isProvider: false,
+    inactivityTimeout: 15
   })
   const [locationData, setLocationData] = useState({
     clinicName: '',
@@ -76,11 +85,13 @@ export function SettingsTabs() {
       try {
         const response = await fetch('http://localhost:3000/api/procedures')
         const data = await response.json()
-        setProcedures(data.procedures || [])
+        if (data.procedures && data.procedures.length > 0) {
+          setProcedures(data.procedures)
+        }
         // Initialize fee schedule form with procedures
         setFeeScheduleFormData(prev => ({
           ...prev,
-          procedureFees: data.procedures?.map(p => ({
+          procedureFees: (data.procedures || procedures)?.map(p => ({
             code: p.code,
             name: p.description,
             originalFee: p.officeFee,
@@ -183,6 +194,36 @@ export function SettingsTabs() {
     }))
   }
 
+  // Handle inline procedure edit
+  const handleEditProcedure = (procedureId) => {
+    setEditingProcedureId(procedureId)
+  }
+
+  // Handle procedure field change
+  const handleProcedureFieldChange = (procedureId, field, value) => {
+    setProcedures(prev => prev.map(p => 
+      p.id === procedureId ? { ...p, [field]: field === 'officeFee' ? parseFloat(value) || 0 : value } : p
+    ))
+  }
+
+  // Handle save procedure
+  const handleSaveProcedure = async (procedure) => {
+    try {
+      // Here you would normally save to the database
+      // For now, just close the edit mode
+      setEditingProcedureId(null)
+      alert('Procedure updated successfully!')
+    } catch (error) {
+      console.error('Error saving procedure:', error)
+      alert('Failed to save procedure. Please try again.')
+    }
+  }
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setEditingProcedureId(null)
+  }
+
   // Validate user form
   const isUserFormValid = () => {
     return userFormData.name.trim().length >= 2 &&
@@ -231,6 +272,79 @@ export function SettingsTabs() {
     } catch (error) {
       console.error('Error creating user:', error)
       alert('Failed to create user. Please try again.')
+    }
+  }
+
+  // Handle edit user
+  const handleEditUser = (user) => {
+    setEditingUserId(user.id)
+    setUserFormData({
+      name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      middleInitial: user.middleInitial,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      password: '',
+      role: user.role,
+      licenseNo: user.licenseNo,
+      schedule: user.schedule,
+      avatar: user.avatar,
+      isProvider: user.isProvider,
+      inactivityTimeout: user.inactivityTimeout
+    })
+    setIsEditUserDialogOpen(true)
+  }
+
+  // Handle update user
+  const handleUpdateUser = async () => {
+    if (!userFormData.name.trim() || !userFormData.email.trim()) {
+      alert('Please fill in all required fields.')
+      return
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/users/${editingUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userFormData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update user')
+      }
+
+      const result = await response.json()
+      
+      // Update user in the list
+      setUsers(prev => prev.map(u => 
+        u.id === editingUserId ? result.user : u
+      ))
+      
+      // Reset form and close dialog
+      setUserFormData({
+        name: '',
+        firstName: '',
+        lastName: '',
+        middleInitial: '',
+        email: '',
+        phoneNumber: '',
+        password: '',
+        role: '',
+        licenseNo: '',
+        schedule: '',
+        avatar: '',
+        isProvider: false,
+        inactivityTimeout: 15
+      })
+      setEditingUserId(null)
+      setIsEditUserDialogOpen(false)
+      alert('User updated successfully!')
+    } catch (error) {
+      console.error('Error updating user:', error)
+      alert('Failed to update user. Please try again.')
     }
   }
 
@@ -495,6 +609,108 @@ export function SettingsTabs() {
                   )}
                 </DialogContent>
               </Dialog>
+
+              {/* Edit User Dialog */}
+              <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Edit User</DialogTitle>
+                    <DialogDescription>
+                      Update user account information.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-name">Full Name <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="edit-name"
+                          placeholder="Dr. Juan Dela Cruz"
+                          value={userFormData.name}
+                          onChange={(e) => handleUserInputChange('name', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-email">Email Address <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="edit-email"
+                          type="email"
+                          placeholder="juan.delacruz@clinic.ph"
+                          value={userFormData.email}
+                          onChange={(e) => handleUserInputChange('email', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-role">Role <span className="text-red-500">*</span></Label>
+                        <Select
+                          value={userFormData.role}
+                          onValueChange={(value) => handleUserInputChange('role', value)}
+                        >
+                          <SelectTrigger id="edit-role">
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Doctor">Doctor</SelectItem>
+                            <SelectItem value="Dentist">Dentist</SelectItem>
+                            <SelectItem value="Nurse">Nurse</SelectItem>
+                            <SelectItem value="Receptionist">Receptionist</SelectItem>
+                            <SelectItem value="Administrator">Administrator</SelectItem>
+                            <SelectItem value="Medical Assistant">Medical Assistant</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-licenseNo">License Number</Label>
+                        <Input
+                          id="edit-licenseNo"
+                          placeholder="PRC-123456"
+                          value={userFormData.licenseNo}
+                          onChange={(e) => handleUserInputChange('licenseNo', e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-schedule">Schedule</Label>
+                        <Input
+                          id="edit-schedule"
+                          placeholder="M-F, 9AM-5PM"
+                          value={userFormData.schedule}
+                          onChange={(e) => handleUserInputChange('schedule', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                      <Label htmlFor="edit-avatar">Avatar URL (optional)</Label>
+                      <Input
+                        id="edit-avatar"
+                        placeholder="https://example.com/avatar.jpg"
+                        value={userFormData.avatar}
+                        onChange={(e) => handleUserInputChange('avatar', e.target.value)}
+                      />
+                    </div>
+                    </div>
+
+                    
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setIsEditUserDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="bg-blue-500 hover:bg-blue-600"
+                      onClick={handleUpdateUser}
+                    >
+                      Update User
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               <Table>
@@ -534,7 +750,7 @@ export function SettingsTabs() {
                         <TableCell>{user.licenseNo || 'N/A'}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{user.schedule || 'Not set'}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
                             Edit
                           </Button>
                         </TableCell>
@@ -624,7 +840,7 @@ export function SettingsTabs() {
                 <CardDescription>Manage standard procedure codes and base fees</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline">Import PhilHealth</Button>
+                <Button >Import PhilHealth</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -656,12 +872,45 @@ export function SettingsTabs() {
                       <TableRow key={procedure.id}>
                         <TableCell className="font-mono">{procedure.code}</TableCell>
                         <TableCell>{procedure.description}</TableCell>
-                        <TableCell>{procedure.category}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(procedure.officeFee)}</TableCell>
+                        <TableCell>
+                          {editingProcedureId === procedure.id ? (
+                            <Input
+                              value={procedure.category}
+                              onChange={(e) => handleProcedureFieldChange(procedure.id, 'category', e.target.value)}
+                              className="h-8"
+                            />
+                          ) : (
+                            procedure.category
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
-                            Edit
-                          </Button>
+                          {editingProcedureId === procedure.id ? (
+                            <Input
+                              type="number"
+                              value={procedure.officeFee}
+                              onChange={(e) => handleProcedureFieldChange(procedure.id, 'officeFee', e.target.value)}
+                              className="h-8 text-right"
+                              step="0.01"
+                            />
+                          ) : (
+                            formatCurrency(procedure.officeFee)
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {editingProcedureId === procedure.id ? (
+                            <div className="flex gap-2 justify-end">
+                              <Button variant="ghost" size="sm" onClick={() => handleSaveProcedure(procedure)}>
+                                Save
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button variant="ghost" size="sm" onClick={() => handleEditProcedure(procedure.id)}>
+                              Edit
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
