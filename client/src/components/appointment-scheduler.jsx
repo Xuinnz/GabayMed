@@ -141,7 +141,7 @@ export function AppointmentScheduler() {
           <Button onClick={handleNewAppointment}>New Appointment</Button>
         </div>
 
-        <div className="flex-1 border rounded-lg overflow-auto bg-white">
+        <div className="flex-1 border rounded-2xl overflow-auto bg-white">
           <div className="grid min-w-[800px]" style={{ gridTemplateColumns: `80px repeat(${providers.length}, 1fr)` }}>
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white border-b p-4"></div>
@@ -212,7 +212,7 @@ export function AppointmentScheduler() {
 
       {/* Right Panel - Appointment Details */}
       {selectedSlot && (
-        <Card className="w-[400px] h-full border-l shadow-none rounded-none border-y-0 border-r-0">
+        <Card className="w-[400px] overflow-auto border-l shadow-none rounded-2xl border-y-0 border-r-0">
           <CardContent className="p-6 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg">

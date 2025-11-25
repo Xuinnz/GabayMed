@@ -24,7 +24,7 @@ export default function CarriersPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f9f9f9]">
       <Header />
       <main className="container mx-auto px-6 py-6">
         {/* Pass the fetched data to the component */}
