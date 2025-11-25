@@ -211,6 +211,39 @@ export const profileAPI = {
       console.error("Get Notes Error:", error.message);
       return [];
     }
+  },
+
+  // 6. Get Facility/Location Profile
+  async getFacilityProfile() {
+    const facilityId = Session.getFacilityId();
+    if (!facilityId) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('facilities')
+        .select('name, address, contact_number, email') 
+        .eq('facility_id', facilityId)
+        .single();
+
+      if (error) throw error;
+
+      // Generate a simple abbreviation from the name (e.g., "City Hospital" -> "CH")
+      const abbreviation = data.name 
+        ? data.name.split(' ').map(w => w[0]).join('').substring(0, 4).toUpperCase() 
+        : 'CLINIC';
+
+      return {
+        clinicName: data.name,
+        abbreviation: abbreviation,
+        address: data.address,
+        phone: data.contact_number,
+        email: data.email || 'admin@gabaymed.com', // Fallback if null
+        timezone: 'Asia/Manila' // Default for PH context
+      };
+    } catch (error) {
+      console.error("Get Facility Profile Error:", error.message);
+      return null;
+    }
   }
 };
 

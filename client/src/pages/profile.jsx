@@ -6,33 +6,41 @@ import { Building2, Mail, Phone, MapPin, Globe, Clock } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { profileAPI } from "../../services/profile" // Import API
 
 export default function ProfilePage() {
   const [locationInfo, setLocationInfo] = useState({
-    clinicName: 'Metropolitan Medical Center',
-    abbreviation: 'MMC-01',
-    address: '123 Medical Plaza, Makati City',
-    phone: '+63 2 8123 4567',
-    email: 'info@metromedical.ph',
-    timezone: 'Asia/Manila'
+    clinicName: '',
+    abbreviation: '',
+    address: '',
+    phone: '',
+    email: '',
+    timezone: ''
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchLocationInfo = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/location')
-        const data = await response.json()
-        setLocationInfo(data.location || locationInfo)
-      } catch (error) {
-        console.error('Failed to fetch location info:', error)
-      } finally {
-        setLoading(false)
+      setLoading(true);
+      const data = await profileAPI.getFacilityProfile();
+      
+      if (data) {
+        setLocationInfo(data);
+      } else {
+        // Fallback for demo if no DB connection or data
+        setLocationInfo({
+            clinicName: 'Metropolitan Medical Center',
+            abbreviation: 'MMC-01',
+            address: '123 Medical Plaza, Makati City',
+            phone: '+63 2 8123 4567',
+            email: 'info@metromedical.ph',
+            timezone: 'Asia/Manila'
+        });
       }
+      setLoading(false);
     }
 
-    // Uncomment to fetch from API
-    // fetchLocationInfo()
+    fetchLocationInfo()
   }, [])
 
   return (
@@ -46,7 +54,9 @@ export default function ProfilePage() {
               <AvatarFallback>DR</AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="text-2xl font-bold">Metropolitan Medical Center</h1>
+              <h1 className="text-2xl font-bold">
+                {loading ? "Loading..." : locationInfo.clinicName}
+              </h1>
               <p className="text-muted-foreground">View your profile and location information</p>
             </div>
           </div>
