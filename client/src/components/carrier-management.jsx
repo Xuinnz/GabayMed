@@ -303,12 +303,12 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                 <div className="space-y-4">
                   <h3 className="font-semibold text-sm">Plan Details</h3>
                   <div className="space-y-2">
-                    <Label>Plan Name *</Label>
+                    <Label>Plan Name <span className="text-red-500">*</span></Label>
                     <Input placeholder="e.g. Standard Corporate Plan" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Benefit Renewal Month *</Label>
+                      <Label>Benefit Renewal Month <span className="text-red-500">*</span></Label>
                       <Select>
                         <SelectTrigger>
                           <SelectValue placeholder="Select month" />
@@ -336,7 +336,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Type *</Label>
+                      <Label>Type <span className="text-red-500">*</span></Label>
                       <Select>
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
@@ -359,7 +359,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
 
                   <div className="space-y-3 bg-slate-50 p-4 rounded-lg">
                     <div className="space-y-2">
-                      <Label className="text-sm">Deductible (First Layer) *</Label>
+                      <Label className="text-sm">Deductible (First Layer) <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                         <Input className="pl-7" placeholder="0.00" />
@@ -370,7 +370,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm">Maximum Limit / LOA (Second Layer) *</Label>
+                      <Label className="text-sm">Maximum Limit / LOA (Second Layer) <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                         <Input className="pl-7" placeholder="0.00" />
@@ -379,7 +379,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm">Co-Pay / Co-Insurance *</Label>
+                      <Label className="text-sm">Co-Pay / Co-Insurance <span className="text-red-500">*</span></Label>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="relative">
                           <Input type="number" placeholder="Amount" />
@@ -455,12 +455,12 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                             <div className="space-y-4">
                               <h3 className="font-semibold text-sm">Plan Details</h3>
                               <div className="space-y-2">
-                                <Label>Plan Name *</Label>
+                                <Label>Plan Name <span className="text-red-500">*</span></Label>
                                 <Input placeholder="e.g. Standard Corporate Plan" defaultValue={plan.planName} />
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <Label>Benefit Renewal Month *</Label>
+                                  <Label>Benefit Renewal Month <span className="text-red-500">*</span></Label>
                                   <Select defaultValue="January">
                                     <SelectTrigger>
                                       <SelectValue placeholder="Select month" />
@@ -488,7 +488,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Type *</Label>
+                                  <Label>Type <span className="text-red-500">*</span></Label>
                                   <Select defaultValue={plan.type.toLowerCase()}>
                                     <SelectTrigger>
                                       <SelectValue placeholder="Select type" />
@@ -511,7 +511,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
 
                               <div className="space-y-3 bg-slate-50 p-4 rounded-lg">
                                 <div className="space-y-2">
-                                  <Label className="text-sm">Deductible (First Layer) *</Label>
+                                  <Label className="text-sm">Deductible (First Layer) <span className="text-red-500">*</span></Label>
                                   <div className="relative">
                                     <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                                     <Input className="pl-7" placeholder="0.00" defaultValue="0.00" />
@@ -522,7 +522,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label className="text-sm">Maximum Limit / LOA (Second Layer) *</Label>
+                                  <Label className="text-sm">Maximum Limit / LOA (Second Layer) <span className="text-red-500">*</span></Label>
                                   <div className="relative">
                                     <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                                     <Input className="pl-7" placeholder="0.00" defaultValue="0.00" />
@@ -531,7 +531,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label className="text-sm">Co-Pay / Co-Insurance *</Label>
+                                  <Label className="text-sm">Co-Pay / Co-Insurance <span className="text-red-500">*</span></Label>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div className="relative">
                                       <Input type="number" placeholder="Amount" defaultValue="0" />
