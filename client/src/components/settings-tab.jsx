@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function SettingsTabs() {
+  const [activeTab, setActiveTab] = useState('users')
   const [users, setUsers] = useState([])
   const [procedures, setProcedures] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(true)
@@ -25,6 +26,15 @@ export function SettingsTabs() {
     schedule: '',
     avatar: ''
   })
+
+  // Check URL for tab parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const tabParam = urlParams.get('tab')
+    if (tabParam) {
+      setActiveTab(tabParam)
+    }
+  }, [])
 
   // Fetch users from database
   useEffect(() => {
@@ -154,7 +164,7 @@ export function SettingsTabs() {
         <p className="text-muted-foreground">Manage your clinic configuration and preferences</p>
       </div>
 
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="location">Location</TabsTrigger>

@@ -118,7 +118,7 @@ export function Header() {
                   <DropdownMenuItem asChild>
                     <a href="/profile" className="flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      My Profile
+                      Metropolitan Medical Center
                     </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

@@ -4,6 +4,7 @@ import PatientsPage from './pages/patients'
 import AppointmentsPage from './pages/appointments'
 import CarriersPage from './pages/carriers'
 import SettingsPage from './pages/settings'
+import ProfilePage from './pages/profile'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard')
@@ -15,6 +16,7 @@ function App() {
     else if (path === '/appointments') setCurrentPage('appointments')
     else if (path === '/carriers') setCurrentPage('carriers')
     else if (path === '/settings') setCurrentPage('settings')
+    else if (path === '/profile') setCurrentPage('profile')
     else setCurrentPage('dashboard')
   }, [])
 
@@ -26,6 +28,7 @@ function App() {
       else if (path === '/appointments') setCurrentPage('appointments')
       else if (path === '/carriers') setCurrentPage('carriers')
       else if (path === '/settings') setCurrentPage('settings')
+      else if (path === '/profile') setCurrentPage('profile')
       else setCurrentPage('dashboard')
     }
 
@@ -45,6 +48,7 @@ function App() {
         else if (path === '/appointments') setCurrentPage('appointments')
         else if (path === '/carriers') setCurrentPage('carriers')
         else if (path === '/settings') setCurrentPage('settings')
+        else if (path === '/profile') setCurrentPage('profile')
         else setCurrentPage('dashboard')
       }
     }
@@ -60,6 +64,7 @@ function App() {
       {currentPage === 'appointments' && <AppointmentsPage />}
       {currentPage === 'carriers' && <CarriersPage />}
       {currentPage === 'settings' && <SettingsPage />}
+      {currentPage === 'profile' && <ProfilePage />}
     </div>
   )
 }
