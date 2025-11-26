@@ -9,16 +9,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { POSTGabayAPI } from "../../services/postGabayApi" // Import API
 
-export function CarrierManagement({ carriers = [], loading = false }) {
+export function CarrierManagement({ carriers = [], loading = false, onRefresh }) {
   // Calculate active carriers from the passed data
   const activeCarriersCount = carriers.filter(c => c.status === 'ACTIVE').length
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAddPlanDialogOpen, setIsAddPlanDialogOpen] = useState(false)
   const [currentTab, setCurrentTab] = useState("basic")
   const [viewMode, setViewMode] = useState("list") // "list" or "manage"
   const [selectedCarrier, setSelectedCarrier] = useState(null)
   const [editingPlan, setEditingPlan] = useState(null)
+  
+  // Form Data for New Carrier
   const [formData, setFormData] = useState({
     carrierName: "",
     planName: "",
@@ -31,10 +35,16 @@ export function CarrierManagement({ carriers = [], loading = false }) {
     expirationDate: ""
   })
 
-  // Sample plans data
-  const carrierPlans = [
-    { id: 1, planName: 'Standard Plan', type: 'Medical' }
-  ]
+  // Form Data for New Plan
+  const [newPlanData, setNewPlanData] = useState({
+    planName: "",
+    renewalMonth: "January",
+    type: "medical",
+    deductible: "",
+    maxLimit: "",
+    coPayAmount: "",
+    coPayType: "fixed"
+  })
 
   const handleInputChange = (field, value) => {
     // Validate input based on field type
@@ -99,24 +109,57 @@ export function CarrierManagement({ carriers = [], loading = false }) {
       return
     }
 
-    // TODO: Implement GabayAPI.addCarrier() to handle the POST request
-    console.log("Saving carrier:", formData);
-    alert('Carrier saved successfully! (UI Simulation)');
-    
-    // Reset form and close dialog
-    setFormData({
-      carrierName: "",
-      planName: "",
-      streetAddress: "",
-      city: "",
-      province: "",
-      zipCode: "",
-      payerId: "",
-      accreditationNumber: "",
-      expirationDate: ""
-    })
-    setCurrentTab("basic")
-    setIsDialogOpen(false)
+    const result = await POSTGabayAPI.createInsuranceCarrier(formData);
+
+    if (result.success) {
+      alert('Carrier saved successfully!');
+      
+      // Reset form and close dialog
+      setFormData({
+        carrierName: "",
+        planName: "",
+        streetAddress: "",
+        city: "",
+        province: "",
+        zipCode: "",
+        payerId: "",
+        accreditationNumber: "",
+        expirationDate: ""
+      })
+      setCurrentTab("basic")
+      setIsDialogOpen(false)
+      if (onRefresh) onRefresh(); // Refresh list
+    } else {
+      alert('Failed to save carrier: ' + result.error);
+    }
+  }
+
+  const handleSavePlan = async () => {
+    if (!newPlanData.planName || !selectedCarrier) return;
+
+    const payload = {
+      carrierId: selectedCarrier.id, // Ensure selectedCarrier has ID
+      ...newPlanData
+    };
+
+    const result = await POSTGabayAPI.createInsurancePlan(payload);
+
+    if (result.success) {
+      alert('Plan added successfully!');
+      setIsAddPlanDialogOpen(false);
+      setNewPlanData({
+        planName: "",
+        renewalMonth: "January",
+        type: "medical",
+        deductible: "",
+        maxLimit: "",
+        coPayAmount: "",
+        coPayType: "fixed"
+      });
+      if (onRefresh) onRefresh();
+    } else {
+      alert('Failed to add plan: ' + result.error);
+    }
   }
 
   const handleCancel = () => {
@@ -287,7 +330,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                   <CardTitle>{selectedCarrier.name} Plans</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">Manage insurance plans for this carrier</p>
                 </div>
-                <Dialog>
+                <Dialog open={isAddPlanDialogOpen} onOpenChange={setIsAddPlanDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-blue-500 hover:bg-blue-600">
                       <Plus className="w-4 h-4 mr-2" />
@@ -304,29 +347,26 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                   <h3 className="font-semibold text-sm">Plan Details</h3>
                   <div className="space-y-2">
                     <Label>Plan Name <span className="text-red-500">*</span></Label>
-                    <Input placeholder="e.g. Standard Corporate Plan" />
+                    <Input 
+                      placeholder="e.g. Standard Corporate Plan" 
+                      value={newPlanData.planName}
+                      onChange={(e) => setNewPlanData({...newPlanData, planName: e.target.value})}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Benefit Renewal Month <span className="text-red-500">*</span></Label>
-                      <Select>
+                      <Select 
+                        value={newPlanData.renewalMonth}
+                        onValueChange={(val) => setNewPlanData({...newPlanData, renewalMonth: val})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select month" />
                         </SelectTrigger>
                         <SelectContent>
                           {[
-                            "January",
-                            "February",
-                            "March",
-                            "April",
-                            "May",
-                            "June",
-                            "July",
-                            "August",
-                            "September",
-                            "October",
-                            "November",
-                            "December",
+                            "January", "February", "March", "April", "May", "June",
+                            "July", "August", "September", "October", "November", "December",
                           ].map((month) => (
                             <SelectItem key={month} value={month}>
                               {month}
@@ -337,7 +377,10 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                     </div>
                     <div className="space-y-2">
                       <Label>Type <span className="text-red-500">*</span></Label>
-                      <Select>
+                      <Select 
+                        value={newPlanData.type}
+                        onValueChange={(val) => setNewPlanData({...newPlanData, type: val})}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
@@ -362,7 +405,12 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                       <Label className="text-sm">Deductible (First Layer) <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
-                        <Input className="pl-7" placeholder="0.00" />
+                        <Input 
+                          className="pl-7" 
+                          placeholder="0.00" 
+                          value={newPlanData.deductible}
+                          onChange={(e) => setNewPlanData({...newPlanData, deductible: e.target.value})}
+                        />
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Amount patient must pay before insurance covers
@@ -373,7 +421,12 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                       <Label className="text-sm">Maximum Limit / LOA (Second Layer) <span className="text-red-500">*</span></Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
-                        <Input className="pl-7" placeholder="0.00" />
+                        <Input 
+                          className="pl-7" 
+                          placeholder="0.00" 
+                          value={newPlanData.maxLimit}
+                          onChange={(e) => setNewPlanData({...newPlanData, maxLimit: e.target.value})}
+                        />
                       </div>
                       <p className="text-xs text-muted-foreground">Maximum amount the insurance will pay</p>
                     </div>
@@ -382,9 +435,17 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                       <Label className="text-sm">Co-Pay / Co-Insurance <span className="text-red-500">*</span></Label>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="relative">
-                          <Input type="number" placeholder="Amount" />
+                          <Input 
+                            type="number" 
+                            placeholder="Amount" 
+                            value={newPlanData.coPayAmount}
+                            onChange={(e) => setNewPlanData({...newPlanData, coPayAmount: e.target.value})}
+                          />
                         </div>
-                        <Select>
+                        <Select 
+                          value={newPlanData.coPayType}
+                          onValueChange={(val) => setNewPlanData({...newPlanData, coPayType: val})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Fixed or %" />
                           </SelectTrigger>
@@ -401,17 +462,7 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button variant="outline" className="flex-1 bg-transparent">
-                    Import Coverage Table
-                  </Button>
-                  <Button variant="outline" className="flex-1 bg-transparent">
-                    Manage Exceptions
-                  </Button>
-                </div>
-
-                <Button className="w-full bg-blue-500">Save Plan</Button>
+                <Button className="w-full bg-blue-500" onClick={handleSavePlan}>Save Plan</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -427,150 +478,17 @@ export function CarrierManagement({ carriers = [], loading = false }) {
                   </TableRow>
                 </TableHeader>
               <TableBody>
-                {/* FIX: Use selectedCarrier.insurance_plans instead of static carrierPlans */}
                 {selectedCarrier.insurance_plans && selectedCarrier.insurance_plans.length > 0 ? (
                   selectedCarrier.insurance_plans.map((plan) => (
                   <TableRow key={plan.plan_id}>
                     <TableCell className="font-medium">{plan.plan_name}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                        {/* Default to Medical if type is not in API response yet */}
                         {plan.type || "Medical"} 
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => setEditingPlan(plan)}
-                          >
-                            Edit
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Edit Insurance Plan</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-6 py-4">
-                            {/* Plan Details Section */}
-                            <div className="space-y-4">
-                              <h3 className="font-semibold text-sm">Plan Details</h3>
-                              <div className="space-y-2">
-                                <Label>Plan Name <span className="text-red-500">*</span></Label>
-                                {/* FIX: Use plan.plan_name from API */}
-                                <Input placeholder="e.g. Standard Corporate Plan" defaultValue={plan.plan_name} />
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label>Benefit Renewal Month <span className="text-red-500">*</span></Label>
-                                  <Select defaultValue="January">
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select month" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {[
-                                        "January",
-                                        "February",
-                                        "March",
-                                        "April",
-                                        "May",
-                                        "June",
-                                        "July",
-                                        "August",
-                                        "September",
-                                        "October",
-                                        "November",
-                                        "December",
-                                      ].map((month) => (
-                                        <SelectItem key={month} value={month}>
-                                          {month}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Type <span className="text-red-500">*</span></Label>
-                                  <Select defaultValue="medical">
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="medical">Medical</SelectItem>
-                                      <SelectItem value="dental">Dental</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Coverage Logic Section */}
-                            <div className="space-y-4 border-t pt-4">
-                              <h3 className="font-semibold text-sm">Coverage Table & Limits</h3>
-                              <p className="text-xs text-muted-foreground">
-                                Define the billing hierarchy and patient responsibility
-                              </p>
-
-                              <div className="space-y-3 bg-slate-50 p-4 rounded-lg">
-                                <div className="space-y-2">
-                                  <Label className="text-sm">Deductible (First Layer) <span className="text-red-500">*</span></Label>
-                                  <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
-                                    <Input className="pl-7" placeholder="0.00" defaultValue="0.00" />
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Amount patient must pay before insurance covers
-                                  </p>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-sm">Maximum Limit / LOA (Second Layer) <span className="text-red-500">*</span></Label>
-                                  <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
-                                    <Input className="pl-7" placeholder="0.00" defaultValue="0.00" />
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">Maximum amount the insurance will pay</p>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-sm">Co-Pay / Co-Insurance <span className="text-red-500">*</span></Label>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div className="relative">
-                                      <Input type="number" placeholder="Amount" defaultValue="0" />
-                                    </div>
-                                    <Select defaultValue="fixed">
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Fixed or %" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="fixed">Fixed Amount</SelectItem>
-                                        <SelectItem value="percent">Percentage (%)</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Patient's share of remaining balance after deductible and LOA
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-2 pt-4 border-t">
-                              <Button variant="outline" className="flex-1 bg-transparent">
-                                Import Coverage Table
-                              </Button>
-                              <Button variant="outline" className="flex-1 bg-transparent">
-                                Manage Exceptions
-                              </Button>
-                            </div>
-
-                            <Button className="w-full bg-blue-500">Update Plan</Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                      <Button variant="ghost" size="sm">Edit</Button>
                     </TableCell>
                   </TableRow>
                 ))

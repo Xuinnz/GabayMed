@@ -388,7 +388,7 @@ export const GabayAPI = {
         .select(`
           carrier_id,
           name,
-          address,
+          street_address,
           status,
           type,
           insurance_plans (
@@ -403,7 +403,7 @@ export const GabayAPI = {
       return data.map(carrier => ({
         id: carrier.carrier_id,
         name: carrier.name,
-        address: carrier.address,
+        address: carrier.street_address,
         status: carrier.status,
         type: carrier.type,
         // 1. The Count (Calculated from the array length)

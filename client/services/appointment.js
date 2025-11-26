@@ -200,6 +200,61 @@ export const appointmentAPI = {
     } catch (error) {
       return [];
     }
-  }
+  },
 
+  // 6. Get Peak Hours Data (Visits per hour for today)
+  async getPeakHoursData() {
+    const facilityId = Session.getFacilityId();
+    const today = new Date().toISOString().split('T')[0];
+    const start = `${today}T00:00:00`;
+    const end = `${today}T23:59:59`;
+
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('appointment_date')
+        .eq('facility_id', facilityId)
+        .gte('appointment_date', start)
+        .lte('appointment_date', end)
+        .neq('status', 'CANCELLED');
+
+      if (error) throw error;
+
+      // Initialize hours map (8 AM to 5 PM standard clinic hours)
+      const hoursMap = {};
+      for (let i = 8; i <= 17; i++) {
+        hoursMap[i] = 0;
+      }
+
+      // Count visits per hour
+      data.forEach(app => {
+        const date = new Date(app.appointment_date);
+        const hour = date.getHours();
+        // Only count if within reasonable range or add dynamically
+        if (hoursMap[hour] !== undefined) {
+          hoursMap[hour]++;
+        } else {
+          // Optional: Add hours outside standard range if needed
+          hoursMap[hour] = (hoursMap[hour] || 0) + 1;
+        }
+      });
+
+      // Convert to array format for Recharts and sort by time
+      const sortedHours = Object.keys(hoursMap).sort((a, b) => parseInt(a) - parseInt(b));
+      
+      return sortedHours.map(hour => {
+        const h = parseInt(hour);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayHour = h % 12 || 12;
+        return {
+          time: `${displayHour} ${ampm}`,
+          visits: hoursMap[hour]
+        };
+      });
+
+    } catch (error) {
+      console.error("Get Peak Hours Error:", error.message);
+      return [];
+    }
+  }
 };

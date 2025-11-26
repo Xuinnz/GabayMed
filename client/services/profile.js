@@ -85,7 +85,7 @@ export const profileAPI = {
           notes,
           insurance_plans (
             plan_name,
-            coverage_type,
+            type,
             carrier ( name )
           )
         `)

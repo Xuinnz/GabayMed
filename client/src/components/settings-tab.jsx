@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { settingsAPI } from "../../services/settings" // Import API
 
 export function SettingsTabs() {
   const [activeTab, setActiveTab] = useState('users')
@@ -25,21 +26,30 @@ export function SettingsTabs() {
   const [feeScheduleDialog, setFeeScheduleDialog] = useState(false)
   const [editFeeScheduleDialog, setEditFeeScheduleDialog] = useState(false)
   const [editingScheduleId, setEditingScheduleId] = useState(null)
+  
+  // Schedule State Management
+  const [scheduleData, setScheduleData] = useState({
+    mon: { active: false, start: '09:00', end: '17:00' },
+    tue: { active: false, start: '09:00', end: '17:00' },
+    wed: { active: false, start: '09:00', end: '17:00' },
+    thu: { active: false, start: '09:00', end: '17:00' },
+    fri: { active: false, start: '09:00', end: '17:00' },
+    sat: { active: false, start: '09:00', end: '12:00' },
+    sun: { active: false, start: '09:00', end: '12:00' }
+  })
+
+  const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+  // Updated to match Provider Schema
   const [userFormData, setUserFormData] = useState({
     name: '',
-    firstName: '',
-    lastName: '',
-    middleInitial: '',
     email: '',
-    phoneNumber: '',
     password: '',
     role: '',
     licenseNo: '',
-    schedule: '',
-    avatar: '',
-    isProvider: false,
-    inactivityTimeout: 15
+    specialization: ''
   })
+
   const [locationData, setLocationData] = useState({
     clinicName: '',
     abbreviation: '',
@@ -62,83 +72,58 @@ export function SettingsTabs() {
     }
   }, [])
 
-  // Fetch users from database
+  // Fetch users (providers) from database
   useEffect(() => {
     const fetchUsers = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/users')
-        const data = await response.json()
-        setUsers(data.users || [])
-      } catch (error) {
-        console.error('Failed to fetch users:', error)
-      } finally {
-        setLoadingUsers(false)
-      }
+      setLoadingUsers(true);
+      const data = await settingsAPI.getProviders();
+      setUsers(data);
+      setLoadingUsers(false);
     }
-
     fetchUsers()
   }, [])
 
   // Fetch procedure codes from database
   useEffect(() => {
     const fetchProcedures = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/procedures')
-        const data = await response.json()
-        if (data.procedures && data.procedures.length > 0) {
-          setProcedures(data.procedures)
-        }
-        // Initialize fee schedule form with procedures
-        setFeeScheduleFormData(prev => ({
-          ...prev,
-          procedureFees: (data.procedures || procedures)?.map(p => ({
-            code: p.code,
-            name: p.description,
-            originalFee: p.officeFee,
-            scheduleFee: p.officeFee
-          })) || []
+      setLoadingProcedures(true);
+      const data = await settingsAPI.getProcedures();
+      setProcedures(data);
+      
+      // Initialize fee schedule form with procedures
+      setFeeScheduleFormData(prev => ({
+        ...prev,
+        procedureFees: data.map(p => ({
+          code: p.code,
+          name: p.description,
+          originalFee: p.officeFee,
+          scheduleFee: p.officeFee
         }))
-      } catch (error) {
-        console.error('Failed to fetch procedures:', error)
-      } finally {
-        setLoadingProcedures(false)
-      }
+      }));
+      setLoadingProcedures(false);
     }
-
     fetchProcedures()
   }, [])
 
   // Fetch fee schedules
   useEffect(() => {
     const fetchFeeSchedules = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/fee-schedules')
-        const data = await response.json()
-        setFeeSchedules(data.feeSchedules || [])
-      } catch (error) {
-        console.error('Failed to fetch fee schedules:', error)
-      } finally {
-        setLoadingFeeSchedules(false)
-      }
+      setLoadingFeeSchedules(true);
+      const data = await settingsAPI.getFeeSchedules();
+      setFeeSchedules(data);
+      setLoadingFeeSchedules(false);
     }
-
     fetchFeeSchedules()
   }, [])
 
   // Fetch location data
   useEffect(() => {
     const fetchLocation = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/api/location')
-        const data = await response.json()
-        if (data.location) {
-          setLocationData(data.location)
-        }
-      } catch (error) {
-        console.error('Failed to fetch location:', error)
+      const data = await settingsAPI.getLocation();
+      if (data) {
+        setLocationData(data);
       }
     }
-
     fetchLocation()
   }, [])
 
@@ -158,6 +143,66 @@ export function SettingsTabs() {
       style: 'currency',
       currency: 'PHP'
     }).format(amount)
+  }
+
+  // Helper to format schedule for display
+  const formatScheduleDisplay = (schedule) => {
+    if (!schedule || typeof schedule !== 'object') return 'Not set'
+    const activeDays = Object.keys(schedule)
+    if (activeDays.length === 0) return 'Not set'
+    
+    // Check if all times are the same
+    const firstTime = schedule[activeDays[0]]
+    const allSame = activeDays.every(d => schedule[d] === firstTime)
+    
+    const dayNames = activeDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')
+    
+    if (allSame) {
+      return `${dayNames} (${firstTime})`
+    }
+    return dayNames // Just list days if times differ
+  }
+
+  // Helper to parse schedule JSON to state
+  const parseScheduleToState = (scheduleJson) => {
+    const defaultState = {
+      mon: { active: false, start: '09:00', end: '17:00' },
+      tue: { active: false, start: '09:00', end: '17:00' },
+      wed: { active: false, start: '09:00', end: '17:00' },
+      thu: { active: false, start: '09:00', end: '17:00' },
+      fri: { active: false, start: '09:00', end: '17:00' },
+      sat: { active: false, start: '09:00', end: '12:00' },
+      sun: { active: false, start: '09:00', end: '12:00' }
+    }
+
+    if (!scheduleJson || typeof scheduleJson !== 'object') return defaultState
+
+    const newState = { ...defaultState }
+    Object.keys(scheduleJson).forEach(day => {
+      if (newState[day] && scheduleJson[day]) {
+        const [start, end] = scheduleJson[day].split('-')
+        newState[day] = { active: true, start: start || '09:00', end: end || '17:00' }
+      }
+    })
+    return newState
+  }
+
+  // Helper to format state to JSON for API
+  const formatScheduleForAPI = () => {
+    const scheduleJson = {}
+    daysOfWeek.forEach(day => {
+      if (scheduleData[day].active) {
+        scheduleJson[day] = `${scheduleData[day].start}-${scheduleData[day].end}`
+      }
+    })
+    return scheduleJson
+  }
+
+  const handleScheduleChange = (day, field, value) => {
+    setScheduleData(prev => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value }
+    }))
   }
 
   // Handle user form input changes
@@ -208,14 +253,16 @@ export function SettingsTabs() {
 
   // Handle save procedure
   const handleSaveProcedure = async (procedure) => {
-    try {
-      // Here you would normally save to the database
-      // For now, just close the edit mode
+    const result = await settingsAPI.updateProcedure(procedure.id, {
+      category: procedure.category,
+      officeFee: procedure.officeFee
+    });
+
+    if (result.success) {
       setEditingProcedureId(null)
       alert('Procedure updated successfully!')
-    } catch (error) {
-      console.error('Error saving procedure:', error)
-      alert('Failed to save procedure. Please try again.')
+    } else {
+      alert('Failed to save procedure: ' + result.error)
     }
   }
 
@@ -228,34 +275,26 @@ export function SettingsTabs() {
   const isUserFormValid = () => {
     return userFormData.name.trim().length >= 2 &&
            userFormData.email.trim().length > 0 &&
-           userFormData.password.trim().length >= 6 &&
            userFormData.role.length > 0
   }
 
-  // Handle save new user
+  // Handle save new user (Provider)
   const handleSaveUser = async () => {
     if (!isUserFormValid()) {
-      alert('Please fill in all required fields. Password must be at least 6 characters.')
+      alert('Please fill in all required fields.')
       return
     }
 
-    try {
-      const response = await fetch('http://localhost:3000/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userFormData)
-      })
+    const payload = {
+      ...userFormData,
+      schedule: formatScheduleForAPI()
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to create user')
-      }
+    const result = await settingsAPI.createProvider(payload);
 
-      const result = await response.json()
-      
+    if (result.success) {
       // Add new user to the list
-      setUsers(prev => [...prev, result.user])
+      setUsers(prev => [...prev, result.provider])
       
       // Reset form and close dialog
       setUserFormData({
@@ -264,14 +303,13 @@ export function SettingsTabs() {
         password: '',
         role: '',
         licenseNo: '',
-        schedule: '',
-        avatar: ''
+        specialization: ''
       })
+      setScheduleData(parseScheduleToState({})) // Reset schedule
       setIsUserDialogOpen(false)
-      alert('User created successfully!')
-    } catch (error) {
-      console.error('Error creating user:', error)
-      alert('Failed to create user. Please try again.')
+      alert('Provider created successfully!')
+    } else {
+      alert('Failed to create provider: ' + result.error)
     }
   }
 
@@ -280,93 +318,61 @@ export function SettingsTabs() {
     setEditingUserId(user.id)
     setUserFormData({
       name: user.name,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      middleInitial: user.middleInitial,
       email: user.email,
-      phoneNumber: user.phoneNumber,
-      password: '',
-      role: user.role,
+      role: user.type || user.role,
       licenseNo: user.licenseNo,
-      schedule: user.schedule,
-      avatar: user.avatar,
-      isProvider: user.isProvider,
-      inactivityTimeout: user.inactivityTimeout
+      specialization: user.specialization || '',
+      password: '' // Don't populate password
     })
+    setScheduleData(parseScheduleToState(user.schedule))
     setIsEditUserDialogOpen(true)
   }
 
-  // Handle update user
+  // Handle update user (Provider)
   const handleUpdateUser = async () => {
     if (!userFormData.name.trim() || !userFormData.email.trim()) {
       alert('Please fill in all required fields.')
       return
     }
 
-    try {
-      const response = await fetch(`http://localhost:3000/api/users/${editingUserId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userFormData)
-      })
+    const payload = {
+      ...userFormData,
+      schedule: formatScheduleForAPI()
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to update user')
-      }
+    const result = await settingsAPI.updateProvider(editingUserId, payload);
 
-      const result = await response.json()
-      
+    if (result.success) {
       // Update user in the list
       setUsers(prev => prev.map(u => 
-        u.id === editingUserId ? result.user : u
+        u.id === editingUserId ? { ...u, ...payload, type: payload.role } : u
       ))
       
       // Reset form and close dialog
       setUserFormData({
         name: '',
-        firstName: '',
-        lastName: '',
-        middleInitial: '',
         email: '',
-        phoneNumber: '',
         password: '',
         role: '',
         licenseNo: '',
-        schedule: '',
-        avatar: '',
-        isProvider: false,
-        inactivityTimeout: 15
+        specialization: ''
       })
       setEditingUserId(null)
       setIsEditUserDialogOpen(false)
-      alert('User updated successfully!')
-    } catch (error) {
-      console.error('Error updating user:', error)
-      alert('Failed to update user. Please try again.')
+      alert('Provider updated successfully!')
+    } else {
+      alert('Failed to update provider: ' + result.error)
     }
   }
 
   // Handle save location
   const handleSaveLocation = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/api/location', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(locationData)
-      })
+    const result = await settingsAPI.updateLocation(locationData);
 
-      if (!response.ok) {
-        throw new Error('Failed to save location')
-      }
-
+    if (result.success) {
       alert('Location updated successfully!')
-    } catch (error) {
-      console.error('Error saving location:', error)
-      alert('Failed to save location. Please try again.')
+    } else {
+      alert('Failed to save location: ' + result.error)
     }
   }
 
@@ -377,21 +383,9 @@ export function SettingsTabs() {
       return
     }
 
-    try {
-      const response = await fetch('http://localhost:3000/api/fee-schedules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(feeScheduleFormData)
-      })
+    const result = await settingsAPI.createFeeSchedule(feeScheduleFormData);
 
-      if (!response.ok) {
-        throw new Error('Failed to create fee schedule')
-      }
-
-      const result = await response.json()
-      
+    if (result.success) {
       // Add new fee schedule to the list
       setFeeSchedules(prev => [...prev, result.feeSchedule])
       
@@ -407,9 +401,8 @@ export function SettingsTabs() {
       })
       setFeeScheduleDialog(false)
       alert('Fee schedule created successfully!')
-    } catch (error) {
-      console.error('Error creating fee schedule:', error)
-      alert('Failed to create fee schedule. Please try again.')
+    } else {
+      alert('Failed to create fee schedule: ' + result.error)
     }
   }
 
@@ -430,24 +423,12 @@ export function SettingsTabs() {
       return
     }
 
-    try {
-      const response = await fetch(`http://localhost:3000/api/fee-schedules/${editingScheduleId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(feeScheduleFormData)
-      })
+    const result = await settingsAPI.updateFeeSchedule(editingScheduleId, feeScheduleFormData);
 
-      if (!response.ok) {
-        throw new Error('Failed to update fee schedule')
-      }
-
-      const result = await response.json()
-      
+    if (result.success) {
       // Update fee schedule in the list
       setFeeSchedules(prev => prev.map(fs => 
-        fs.id === editingScheduleId ? result.feeSchedule : fs
+        fs.id === editingScheduleId ? { ...fs, ...feeScheduleFormData } : fs
       ))
       
       // Reset form and close dialog
@@ -463,9 +444,8 @@ export function SettingsTabs() {
       setEditingScheduleId(null)
       setEditFeeScheduleDialog(false)
       alert('Fee schedule updated successfully!')
-    } catch (error) {
-      console.error('Error updating fee schedule:', error)
-      alert('Failed to update fee schedule. Please try again.')
+    } else {
+      alert('Failed to update fee schedule: ' + result.error)
     }
   }
 
@@ -478,7 +458,7 @@ export function SettingsTabs() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
-          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="users">Providers</TabsTrigger>
           <TabsTrigger value="location">Location</TabsTrigger>
           <TabsTrigger value="procedures">Procedures</TabsTrigger>
           <TabsTrigger value="fees">Fees</TabsTrigger>
@@ -489,18 +469,18 @@ export function SettingsTabs() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>User Accounts & Providers</CardTitle>
+                <CardTitle>Providers & Staff</CardTitle>
                 <CardDescription>Manage staff access and provider schedules</CardDescription>
               </div>
               <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-blue-500">Add New User</Button>
+                  <Button className="bg-blue-500">Add New Provider</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>Add New User</DialogTitle>
+                    <DialogTitle>Add New Provider</DialogTitle>
                     <DialogDescription>
-                      Create a new user account for staff or provider. Fields marked with * are required.
+                      Create a new account for staff or provider. Fields marked with * are required.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -538,7 +518,7 @@ export function SettingsTabs() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="role">Role <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="role">Role / Type <span className="text-red-500">*</span></Label>
                         <Select
                           value={userFormData.role}
                           onValueChange={(value) => handleUserInputChange('role', value)}
@@ -547,12 +527,12 @@ export function SettingsTabs() {
                             <SelectValue placeholder="Select role" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Doctor">Doctor</SelectItem>
-                            <SelectItem value="Dentist">Dentist</SelectItem>
-                            <SelectItem value="Nurse">Nurse</SelectItem>
-                            <SelectItem value="Receptionist">Receptionist</SelectItem>
-                            <SelectItem value="Administrator">Administrator</SelectItem>
-                            <SelectItem value="Medical Assistant">Medical Assistant</SelectItem>
+                            <SelectItem value="DOCTOR">Doctor</SelectItem>
+                            <SelectItem value="DENTIST">Dentist</SelectItem>
+                            <SelectItem value="NURSE">Nurse</SelectItem>
+                            <SelectItem value="RECEPTIONIST">Receptionist</SelectItem>
+                            <SelectItem value="ADMINISTRATOR">Administrator</SelectItem>
+                            <SelectItem value="MEDICAL ASSISTANT">Medical Assistant</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -569,24 +549,50 @@ export function SettingsTabs() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="schedule">Schedule</Label>
+                        <Label htmlFor="specialization">Specialization</Label>
                         <Input
-                          id="schedule"
-                          placeholder="M-F, 9AM-5PM"
-                          value={userFormData.schedule}
-                          onChange={(e) => handleUserInputChange('schedule', e.target.value)}
+                          id="specialization"
+                          placeholder="e.g. Cardiology, General Dentistry"
+                          value={userFormData.specialization}
+                          onChange={(e) => handleUserInputChange('specialization', e.target.value)}
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="avatar">Avatar URL (optional)</Label>
-                      <Input
-                        id="avatar"
-                        placeholder="https://example.com/avatar.jpg"
-                        value={userFormData.avatar}
-                        onChange={(e) => handleUserInputChange('avatar', e.target.value)}
-                      />
+                      <Label htmlFor="schedule">Schedule Details</Label>
+                      <div className="border rounded-md p-4 max-h-48 overflow-y-auto bg-slate-50">
+                        {daysOfWeek.map(day => (
+                          <div key={day} className="flex items-center gap-4 mb-2 last:mb-0">
+                            <div className="flex items-center gap-2 w-24">
+                              <input 
+                                type="checkbox" 
+                                checked={scheduleData[day].active}
+                                onChange={(e) => handleScheduleChange(day, 'active', e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-medium uppercase text-gray-700">{day}</span>
+                            </div>
+                            {scheduleData[day].active && (
+                              <div className="flex items-center gap-2">
+                                <Input 
+                                  type="time" 
+                                  value={scheduleData[day].start}
+                                  onChange={(e) => handleScheduleChange(day, 'start', e.target.value)}
+                                  className="h-8 w-28 bg-white"
+                                />
+                                <span className="text-xs text-muted-foreground">to</span>
+                                <Input 
+                                  type="time" 
+                                  value={scheduleData[day].end}
+                                  onChange={(e) => handleScheduleChange(day, 'end', e.target.value)}
+                                  className="h-8 w-28 bg-white"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -599,7 +605,7 @@ export function SettingsTabs() {
                       onClick={handleSaveUser}
                       disabled={!isUserFormValid()}
                     >
-                      Create User
+                      Create Provider
                     </Button>
                   </div>
                   {!isUserFormValid() && (
@@ -614,9 +620,9 @@ export function SettingsTabs() {
               <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>Edit User</DialogTitle>
+                    <DialogTitle>Edit Provider</DialogTitle>
                     <DialogDescription>
-                      Update user account information.
+                      Update provider account information.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -674,28 +680,51 @@ export function SettingsTabs() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      
                       <div className="space-y-2">
-                        <Label htmlFor="edit-schedule">Schedule</Label>
+                        <Label htmlFor="edit-specialization">Specialization</Label>
                         <Input
-                          id="edit-schedule"
-                          placeholder="M-F, 9AM-5PM"
-                          value={userFormData.schedule}
-                          onChange={(e) => handleUserInputChange('schedule', e.target.value)}
+                          id="edit-specialization"
+                          placeholder="e.g. Cardiology"
+                          value={userFormData.specialization}
+                          onChange={(e) => handleUserInputChange('specialization', e.target.value)}
                         />
                       </div>
                       <div className="space-y-2">
-                      <Label htmlFor="edit-avatar">Avatar URL (optional)</Label>
-                      <Input
-                        id="edit-avatar"
-                        placeholder="https://example.com/avatar.jpg"
-                        value={userFormData.avatar}
-                        onChange={(e) => handleUserInputChange('avatar', e.target.value)}
-                      />
+                        <Label htmlFor="edit-schedule">Schedule</Label>
+                        <div className="border rounded-md p-4 max-h-48 overflow-y-auto bg-slate-50">
+                          {daysOfWeek.map(day => (
+                            <div key={day} className="flex items-center gap-4 mb-2 last:mb-0">
+                              <div className="flex items-center gap-2 w-24">
+                                <input 
+                                  type="checkbox" 
+                                  checked={scheduleData[day].active}
+                                  onChange={(e) => handleScheduleChange(day, 'active', e.target.checked)}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium uppercase text-gray-700">{day}</span>
+                              </div>
+                              {scheduleData[day].active && (
+                                <div className="flex items-center gap-2">
+                                  <Input 
+                                    type="time" 
+                                    value={scheduleData[day].start}
+                                    onChange={(e) => handleScheduleChange(day, 'start', e.target.value)}
+                                    className="h-8 w-28 bg-white"
+                                  />
+                                  <span className="text-xs text-muted-foreground">to</span>
+                                  <Input 
+                                    type="time" 
+                                    value={scheduleData[day].end}
+                                    onChange={(e) => handleScheduleChange(day, 'end', e.target.value)}
+                                    className="h-8 w-28 bg-white"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    </div>
-
-                    
                   </div>
 
                   <div className="flex justify-end gap-3">
@@ -706,7 +735,7 @@ export function SettingsTabs() {
                       className="bg-blue-500 hover:bg-blue-600"
                       onClick={handleUpdateUser}
                     >
-                      Update User
+                      Update Provider
                     </Button>
                   </div>
                 </DialogContent>
@@ -727,13 +756,13 @@ export function SettingsTabs() {
                   {loadingUsers ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Loading users...
+                        Loading providers...
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No users found. Click "Add New User" to get started.
+                        No providers found. Click "Add New Provider" to get started.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -741,14 +770,16 @@ export function SettingsTabs() {
                       <TableRow key={user.id}>
                         <TableCell className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.avatar || "/placeholder-user.jpg"} />
+                            <AvatarImage src="/placeholder-user.jpg" />
                             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                           </Avatar>
                           <div className="font-medium">{user.name}</div>
                         </TableCell>
-                        <TableCell>{user.role}</TableCell>
+                        <TableCell>{user.type || user.role}</TableCell>
                         <TableCell>{user.licenseNo || 'N/A'}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{user.schedule || 'Not set'}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate" title={JSON.stringify(user.schedule)}>
+                          {formatScheduleDisplay(user.schedule)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
                             Edit

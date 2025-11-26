@@ -29,8 +29,8 @@ const API_BASE_URL = 'http://localhost:3000/api';
 
 export const POSTGabayAPI = {
   
-  async createPatient(patientData) { // Removed facilityId parameter
-    const facilityId = Session.getFacilityId(); // Get from Session
+  async createPatient(patientData) { 
+    const facilityId = Session.getFacilityId(); 
 
     const {
       // Profile Fields
@@ -45,7 +45,6 @@ export const POSTGabayAPI = {
     } = patientData;
 
     try {
-      // VALIDATION: Ensure facilityId is present
       if (!facilityId) {
         throw new Error("Facility ID is required to create a patient.");
       }
@@ -85,6 +84,62 @@ export const POSTGabayAPI = {
 
     } catch (error) {
       console.error("Create Patient Error:", error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Create Carrier (and optional default plan)
+  async createInsuranceCarrier(carrierData) {
+    try {
+      // 1. Create Carrier
+      const { data: carrier, error: carrierError } = await supabase
+        .from('carrier')
+        .insert([{
+          name: carrierData.carrierName,
+          street_address: carrierData.streetAddress,
+          city: carrierData.city,
+          province: carrierData.province,
+          zip_code: carrierData.zipCode,
+          payer_id: carrierData.payerId,
+          accreditation_number: carrierData.accreditationNumber,
+          accreditation_expiration: carrierData.expirationDate,
+          status: 'ACTIVE',
+          type: carrierData.planName 
+        }])
+        .select()
+        .single();
+
+      if (carrierError) throw carrierError;
+
+      return { success: true, data: carrier };
+    } catch (error) {
+      console.error("Create Carrier Error:", error.message);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Create Insurance Plan
+  async createInsurancePlan(planData) {
+    try {
+      const { data, error } = await supabase
+        .from('insurance_plans')
+        .insert([{
+          carrier_id: planData.carrierId,
+          plan_name: planData.planName,
+          type: planData.type,
+          renewal_month: planData.renewalMonth,
+          deductible: planData.deductible,
+          max_limit: planData.maxLimit,
+          copay_amount: planData.coPayAmount,
+          copay_type: planData.coPayType
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error("Create Plan Error:", error.message);
       return { success: false, error: error.message };
     }
   }
