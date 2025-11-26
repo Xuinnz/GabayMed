@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { profileAPI } from "../../services/profile" // Import Service
+import { profileAPI } from "../../services/profile"
+import { appointmentAPI } from "../../services/appointment"
+import { PatientLedger } from "../components/patient-ledger" // 1. Import the component
 
 export function PatientProfile({ patient }) {
   const [isAddPlanOpen, setIsAddPlanOpen] = useState(false)
@@ -19,13 +21,15 @@ export function PatientProfile({ patient }) {
   
   // Data States
   const [insurancePlans, setInsurancePlans] = useState([])
-  const [ledgerData, setLedgerData] = useState([])
+  // const [ledgerData, setLedgerData] = useState([]) // 2. Remove old ledger state
   const [clinicalNotes, setClinicalNotes] = useState([])
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]) // New State
   
   // Loading States
   const [loadingPlans, setLoadingPlans] = useState(true)
-  const [loadingLedger, setLoadingLedger] = useState(true)
+  // const [loadingLedger, setLoadingLedger] = useState(true) // 3. Remove old loading state
   const [loadingNotes, setLoadingNotes] = useState(true)
+  const [loadingAppointments, setLoadingAppointments] = useState(true) // New State
 
   // Initialize state safely mapping from the Table's data structure
   const [patientData, setPatientData] = useState({
@@ -62,17 +66,19 @@ export function PatientProfile({ patient }) {
       setInsurancePlans(plans);
       setLoadingPlans(false);
 
-      // C. Fetch Ledger
-      setLoadingLedger(true);
-      const ledger = await profileAPI.getPatientLedger(patientData.id);
-      setLedgerData(ledger);
-      setLoadingLedger(false);
+      // C. Fetch Ledger - REMOVED (Now handled by PatientLedger component)
 
       // D. Fetch Notes
       setLoadingNotes(true);
       const notes = await profileAPI.getClinicalNotes(patientData.id);
       setClinicalNotes(notes);
       setLoadingNotes(false);
+
+      // E. Fetch Upcoming Appointments
+      setLoadingAppointments(true);
+      const appointments = await appointmentAPI.getUpcomingAppointmentsByPatient(patientData.id);
+      setUpcomingAppointments(appointments);
+      setLoadingAppointments(false);
     };
 
     loadData();
@@ -203,7 +209,33 @@ export function PatientProfile({ patient }) {
                 <CardTitle>Upcoming Appointments</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-muted-foreground text-sm">No upcoming appointments scheduled.</div>
+                {loadingAppointments ? (
+                  <div className="text-sm text-muted-foreground">Loading appointments...</div>
+                ) : upcomingAppointments.length === 0 ? (
+                  <div className="text-muted-foreground text-sm">No upcoming appointments scheduled.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingAppointments.map((apt) => (
+                      <div key={apt.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                            <Calendar className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{apt.procedure}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(apt.date).toLocaleDateString()} at {new Date(apt.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-gray-900">{apt.provider}</p>
+                          <Badge variant="outline" className="mt-1">{apt.status}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -224,49 +256,9 @@ export function PatientProfile({ patient }) {
           </div>
         </TabsContent>
 
-        {/* LEDGER TAB */}
+        {/* 4. Replace the entire Ledger Tab content */}
         <TabsContent value="ledger">
-          <Card>
-            <CardHeader>
-              <CardTitle>Financial History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingLedger ? (
-                <div className="text-sm text-muted-foreground">Loading ledger...</div>
-              ) : ledgerData.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No transactions found.</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ledgerData.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium">{item.description}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.status === 'PAID' ? 'default' : 'destructive'}>
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="capitalize">{item.method || '-'}</TableCell>
-                        <TableCell className="text-right font-bold">
-                          ₱{item.amount?.toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <PatientLedger patientId={patientData.id} />
         </TabsContent>
 
         {/* INSURANCE TAB */}

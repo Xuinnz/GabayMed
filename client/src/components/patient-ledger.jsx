@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ledgerAPI } from "../../services/ledger"
+import { appointmentAPI } from "../../services/appointment"
 
 export function PatientLedger({ patientId }) {
   const [transactions, setTransactions] = useState([])
@@ -19,6 +21,7 @@ export function PatientLedger({ patientId }) {
   const [loading, setLoading] = useState(true)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [isProcedureDialogOpen, setIsProcedureDialogOpen] = useState(false)
+  const [providers, setProviders] = useState([])
   
   // Payment form state
   const [paymentForm, setPaymentForm] = useState({
@@ -55,57 +58,49 @@ export function PatientLedger({ patientId }) {
   }
 
   // Fetch transactions from API
-  const fetchTransactions = () => {
+  const fetchTransactions = async () => {
     if (patientId) {
       setLoading(true)
-      fetch(`http://localhost:3000/api/patients/${patientId}/transactions`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.transactions) {
-            setTransactions(data.transactions)
-          }
-          if (data.financial) {
-            setFinancialData(data.financial)
-          }
-          setLoading(false)
-        })
-        .catch(err => {
-          console.error('Failed to fetch transactions:', err)
-          setLoading(false)
-        })
+      const data = await ledgerAPI.getPatientLedger(patientId);
+      
+      if (data.transactions) {
+        setTransactions(data.transactions)
+      }
+      if (data.financial) {
+        setFinancialData(data.financial)
+      }
+      setLoading(false)
     }
   }
 
   useEffect(() => {
     fetchTransactions()
+    
+    // Load providers for the dropdown
+    const loadProviders = async () => {
+      const provs = await appointmentAPI.getProviders();
+      setProviders(provs);
+    }
+    loadProviders();
   }, [patientId])
 
   // Handle payment submission
   const handlePaymentSubmit = async () => {
     if (!isPaymentFormValid()) return
 
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${patientId}/payments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...paymentForm,
-          amount: parseFloat(paymentForm.amount)
-        })
-      })
+    const result = await ledgerAPI.addPayment(patientId, paymentForm);
       
-      if (response.ok) {
-        setIsPaymentDialogOpen(false)
-        setPaymentForm({
-          date: new Date().toISOString().split('T')[0],
-          amount: '',
-          method: '',
-          paidAtVisit: false
-        })
-        fetchTransactions() // Refresh transactions
-      }
-    } catch (err) {
-      console.error('Failed to submit payment:', err)
+    if (result.success) {
+      setIsPaymentDialogOpen(false)
+      setPaymentForm({
+        date: new Date().toISOString().split('T')[0],
+        amount: '',
+        method: '',
+        paidAtVisit: false
+      })
+      fetchTransactions() // Refresh transactions
+    } else {
+      alert("Failed to add payment: " + result.error);
     }
   }
 
@@ -113,30 +108,21 @@ export function PatientLedger({ patientId }) {
   const handleProcedureSubmit = async () => {
     if (!isProcedureFormValid()) return
 
-    try {
-      const response = await fetch(`http://localhost:3000/api/patients/${patientId}/procedures`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...procedureForm,
-          amount: parseFloat(procedureForm.amount)
-        })
-      })
+    const result = await ledgerAPI.addCharge(patientId, procedureForm);
       
-      if (response.ok) {
-        setIsProcedureDialogOpen(false)
-        setProcedureForm({
-          date: new Date().toISOString().split('T')[0],
-          provider: '',
-          code: '',
-          description: '',
-          amount: '',
-          billToInsurance: false
-        })
-        fetchTransactions() // Refresh transactions
-      }
-    } catch (err) {
-      console.error('Failed to submit procedure:', err)
+    if (result.success) {
+      setIsProcedureDialogOpen(false)
+      setProcedureForm({
+        date: new Date().toISOString().split('T')[0],
+        provider: '',
+        code: '',
+        description: '',
+        amount: '',
+        billToInsurance: false
+      })
+      fetchTransactions() // Refresh transactions
+    } else {
+      alert("Failed to add charge: " + result.error);
     }
   }
 
@@ -164,72 +150,7 @@ export function PatientLedger({ patientId }) {
 
   return (
     <div className="space-y-6">
-      {/* Financial Summary Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-slate-50 border-slate-200">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-2 font-medium">Account Aging</div>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">0-30</div>
-                <div className={`font-bold ${financialData.aging['0-30'] > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                  ₱{financialData.aging['0-30'].toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">31-60</div>
-                <div className={`font-bold ${financialData.aging['31-60'] > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                  ₱{financialData.aging['31-60'].toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">61-90</div>
-                <div className={`font-bold ${financialData.aging['61-90'] > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                  ₱{financialData.aging['61-90'].toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">91+</div>
-                <div className={`font-bold ${financialData.aging['91+'] > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
-                  ₱{financialData.aging['91+'].toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-blue-50 border-blue-100">
-          <CardContent className="p-4">
-            <div className="text-sm text-[#66BAFF] mb-2 font-bold">Balance Breakdown</div>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="border-r border-blue-200">
-                <div className="text-xs text-[#66BAFF] font-bold mb-1">Total</div>
-                <div className="font-bold text-blue-900">
-                  ₱{financialData.balance.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-[#66BAFF] font-bold mb-1">Insurance</div>
-                <div className="font-bold text-blue-900">
-                  ₱{financialData.balance.insurance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-[#66BAFF] font-bold  mb-1">Adjust</div>
-                <div className="font-bold text-blue-900">
-                  ₱{financialData.balance.adjust.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div className="bg-white rounded p-1 shadow-sm">
-                <div className="text-xs text-[#66BAFF] mb-1 font-bold">Patient</div>
-                <div className="font-bold text-[#66BAFF] ">
-                  ₱{financialData.balance.patient.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* REMOVED: Financial Summary Row (Aging and Balance Cards) */}
 
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
@@ -375,8 +296,11 @@ export function PatientLedger({ patientId }) {
                       <SelectValue placeholder="Select Provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dr-smith">Dr. Smith</SelectItem>
-                      <SelectItem value="dr-jones">Dr. Jones</SelectItem>
+                      {providers.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -457,19 +381,31 @@ export function PatientLedger({ patientId }) {
                   </TableCell>
                 </TableRow>
               ) : (
-                transactions.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>{t.date}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{t.created}</TableCell>
-                    <TableCell className="font-mono text-sm">{t.code}</TableCell>
-                    <TableCell>{t.description}</TableCell>
-                    <TableCell>{t.provider}</TableCell>
-                    <TableCell className={`text-right font-medium ${t.amount < 0 ? "text-green-600" : "text-slate-900"}`}>
-                      {t.amount < 0 ? "(" : ""}₱{Math.abs(t.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      {t.amount < 0 ? ")" : ""}
+                <>
+                  {transactions.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell>{t.date}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{t.created}</TableCell>
+                      <TableCell className="font-mono text-sm">{t.code}</TableCell>
+                      <TableCell>{t.description}</TableCell>
+                      <TableCell>{t.provider}</TableCell>
+                      <TableCell className={`text-right font-medium ${t.amount < 0 ? "text-green-600" : "text-slate-900"}`}>
+                        {t.amount < 0 ? "(" : ""}₱{Math.abs(t.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        {t.amount < 0 ? ")" : ""}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* New Total Row */}
+                  <TableRow className="bg-slate-50 border-t-2 border-slate-100 hover:bg-slate-50">
+                    <TableCell colSpan={5} className="text-right font-bold text-slate-700 uppercase text-xs tracking-wider pt-4">
+                      Total Balance
+                    </TableCell>
+                    <TableCell className={`text-right font-bold text-lg pt-4 ${financialData.balance.total < 0 ? "text-green-600" : "text-blue-700"}`}>
+                      {financialData.balance.total < 0 ? "(" : ""}₱{Math.abs(financialData.balance.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      {financialData.balance.total < 0 ? ")" : ""}
                     </TableCell>
                   </TableRow>
-                ))
+                </>
               )}
             </TableBody>
           </Table>

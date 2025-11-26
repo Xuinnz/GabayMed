@@ -155,9 +155,9 @@ export const profileAPI = {
           ledger_id,
           created_at,
           description,
-          total_bill_amount,
-          payment_status,
-          payment_method,
+          amount,
+          status,
+          code,
           appointments (
             appointment_date,
             procedures ( name )
@@ -172,7 +172,7 @@ export const profileAPI = {
         id: item.ledger_id,
         date: item.created_at,
         description: item.description || item.appointments?.procedures?.name || 'Medical Service',
-        amount: item.total_bill_amount,
+        amount: item.amount,
         status: item.payment_status,
         method: item.payment_method
       }));

@@ -256,5 +256,44 @@ export const appointmentAPI = {
       console.error("Get Peak Hours Error:", error.message);
       return [];
     }
+  },
+
+  // 7. Get Upcoming Appointments for a Patient
+  async getUpcomingAppointmentsByPatient(patientId) {
+    const facilityId = Session.getFacilityId();
+    // Use start of today (00:00:00) to ensure today's appointments are included
+    const today = new Date().toISOString().split('T')[0];
+    const startOfToday = `${today}T00:00:00`;
+
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          appointment_id,
+          appointment_date,
+          status,
+          procedures ( name ),
+          providers ( name )
+        `)
+        .eq('facility_id', facilityId)
+        .eq('patient_id', patientId)
+        .gte('appointment_date', startOfToday)
+        .neq('status', 'CANCELLED')
+        .order('appointment_date', { ascending: true })
+        .limit(5);
+
+      if (error) throw error;
+
+      return data.map(apt => ({
+        id: apt.appointment_id,
+        date: apt.appointment_date,
+        procedure: apt.procedures?.name || 'General Checkup',
+        provider: apt.providers?.name || 'Unknown Provider',
+        status: apt.status
+      }));
+    } catch (error) {
+      console.error("Get Patient Upcoming Appointments Error:", error.message);
+      return [];
+    }
   }
 };

@@ -129,9 +129,10 @@ export const settingsAPI = {
       
       return {
         clinicName: data.name,
-        abbreviation: data.name ? data.name.substring(0, 3).toUpperCase() : 'CLI',
+        abbreviation: data.name 
+        ? data.name.split(' ').map(w => w[0]).join('').substring(0, 4).toUpperCase() : 'CLINIC',
         address: data.address,
-        phone: data.phone_number,
+        phone: data.contact_number,
         email: data.email,
         timezone: 'Asia/Manila'
       };
