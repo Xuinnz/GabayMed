@@ -6,13 +6,18 @@ import { HomePage } from './pages/home';
 import { SettingsPage } from './pages/settings';
 import { MessagesPage } from './pages/message';
 import { SeekMedicalCare } from './pages/seekmedicalcare';
+import { MyFacilities } from './pages/facilities';
+import { NotificationsPage } from './pages/notifications';
 import { BottomNav } from './components/bottom-nav';
 import { SintomasAI } from './components/chatbot';
+import { AppointmentBooking } from './components/appointment';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [showMessages, setShowMessages] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showAppointment, setShowAppointment] = useState(false);
 
   const handleOpenMessages = () => {
     setShowMessages(true);
@@ -23,7 +28,11 @@ export default function App() {
   };
 
   const handleOpenNotifications = () => {
-    console.log('Open notifications');
+    setShowNotifications(true);
+  };
+
+  const handleCloseNotifications = () => {
+    setShowNotifications(false);
   };
 
   const handleOpenAI = () => {
@@ -35,7 +44,11 @@ export default function App() {
   };
 
   const handleOpenAppointmentBooking = () => {
-    console.log('Open appointment booking');
+    setShowAppointment(true);
+  };
+
+  const handleCloseAppointment = () => {
+    setShowAppointment(false);
   };
 
   const handleTabChange = (tab) => {
@@ -49,6 +62,10 @@ export default function App() {
 
   if (showChatbot) {
     return <SintomasAI onBack={handleCloseChatbot} isModal={false} />;
+  }
+
+  if (showNotifications) {
+    return <NotificationsPage onBack={handleCloseNotifications} />;
   }
 
   const renderPage = () => {
@@ -65,6 +82,13 @@ export default function App() {
       case 'facilities':
         return (
           <SeekMedicalCare
+            onOpenMessages={handleOpenMessages}
+            onOpenNotifications={handleOpenNotifications}
+          />
+        );
+      case 'medical':
+        return (
+          <MyFacilities
             onOpenMessages={handleOpenMessages}
             onOpenNotifications={handleOpenNotifications}
           />
@@ -95,6 +119,10 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         onAIClick={handleOpenAI}
+      />
+      <AppointmentBooking 
+        visible={showAppointment}
+        onClose={handleCloseAppointment}
       />
       <StatusBar style="dark" />
     </View>
