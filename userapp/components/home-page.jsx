@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { MapPin, Calendar, Clock, Sparkles, Plus } from 'lucide-react-native';
+import { AppHeader } from './app-header';
 
 export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpenAppointmentBooking }) {
   const services = [
@@ -13,17 +14,7 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpen
   return (
     <ScrollView style={styles.container}>
       {/* App Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>GabayMed</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={onOpenMessages} style={styles.headerButton}>
-            <Text style={styles.headerButtonText}>💬</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onOpenNotifications} style={styles.headerButton}>
-            <Text style={styles.headerButtonText}>🔔</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
 
       {/* Upcoming Appointment Section */}
       <View style={styles.section}>
@@ -116,31 +107,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 48,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    padding: 8,
-  },
-  headerButtonText: {
-    fontSize: 20,
   },
   section: {
     padding: 16,
