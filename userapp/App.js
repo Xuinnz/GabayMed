@@ -5,11 +5,14 @@ import { View, StyleSheet } from 'react-native';
 import { HomePage } from './pages/home';
 import { SettingsPage } from './pages/settings';
 import { MessagesPage } from './pages/message';
+import { SeekMedicalCare } from './pages/seekmedicalcare';
 import { BottomNav } from './components/bottom-nav';
+import { SintomasAI } from './components/chatbot';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [showMessages, setShowMessages] = useState(false);
+  const [showChatbot, setShowChatbot] = useState(false);
 
   const handleOpenMessages = () => {
     setShowMessages(true);
@@ -24,7 +27,11 @@ export default function App() {
   };
 
   const handleOpenAI = () => {
-    console.log('Open AI Triage');
+    setShowChatbot(true);
+  };
+
+  const handleCloseChatbot = () => {
+    setShowChatbot(false);
   };
 
   const handleOpenAppointmentBooking = () => {
@@ -40,6 +47,10 @@ export default function App() {
     return <MessagesPage onBack={handleCloseMessages} />;
   }
 
+  if (showChatbot) {
+    return <SintomasAI onBack={handleCloseChatbot} isModal={false} />;
+  }
+
   const renderPage = () => {
     switch (activeTab) {
       case 'home':
@@ -49,6 +60,13 @@ export default function App() {
             onOpenNotifications={handleOpenNotifications}
             onOpenAI={handleOpenAI}
             onOpenAppointmentBooking={handleOpenAppointmentBooking}
+          />
+        );
+      case 'facilities':
+        return (
+          <SeekMedicalCare
+            onOpenMessages={handleOpenMessages}
+            onOpenNotifications={handleOpenNotifications}
           />
         );
       case 'settings':
