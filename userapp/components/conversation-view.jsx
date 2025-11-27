@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Send, Phone, Video } from 'lucide-react-native';
+import { GradientButton, GradientView } from './ui/gradient-button';
 
 export function ConversationView({ name, avatar, onBack }) {
   const [message, setMessage] = useState('');
@@ -39,7 +39,7 @@ export function ConversationView({ name, avatar, onBack }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <LinearGradient
+      <GradientView
         colors={['#66BAFF', '#83BFF0']}
         style={styles.header}
       >
@@ -61,7 +61,7 @@ export function ConversationView({ name, avatar, onBack }) {
             <Video size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </GradientView>
 
       <ScrollView style={styles.messagesContainer}>
         {messages.map((msg) => (
@@ -73,7 +73,7 @@ export function ConversationView({ name, avatar, onBack }) {
             ]}
           >
             {msg.type === 'sent' ? (
-              <LinearGradient
+              <GradientView
                 colors={['#66BAFF', '#83BFF0']}
                 style={[styles.messageBubble, styles.sentBubble]}
               >
@@ -83,7 +83,7 @@ export function ConversationView({ name, avatar, onBack }) {
                 <Text style={[styles.messageTime, styles.sentTime]}>
                   {msg.time}
                 </Text>
-              </LinearGradient>
+              </GradientView>
             ) : (
               <View style={[styles.messageBubble, styles.receivedBubble]}>
                 <Text style={[styles.messageText, styles.receivedText]}>
@@ -106,14 +106,13 @@ export function ConversationView({ name, avatar, onBack }) {
           onChangeText={setMessage}
           multiline
         />
-        <TouchableOpacity onPress={handleSend}>
-          <LinearGradient
-            colors={['#66BAFF', '#83BFF0']}
-            style={styles.sendButton}
-          >
-            <Send size={20} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
+        <GradientButton 
+          onPress={handleSend}
+          colors={['#66BAFF', '#83BFF0']}
+          style={styles.sendButton}
+        >
+          <Send size={20} color="#fff" />
+        </GradientButton>
       </View>
     </KeyboardAvoidingView>
   );
