@@ -92,7 +92,7 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
       </View>
       <View style={styles.rightSection}>
         <TouchableOpacity onPress={onOpenMessages} style={styles.iconButton}>
-          <MessageCircle size={20} color="#4b5563" />
+          <MessageCircle size={24} color="#4b5563" fill={"#3A4D51"} />
           {unreadMessages > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
@@ -100,7 +100,7 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
           )}
         </TouchableOpacity>
         <TouchableOpacity onPress={onOpenNotifications} style={styles.iconButton}>
-          <Bell size={20} color="#4b5563" />
+          <Bell size={24} color="#4b5563" fill={"#3A4D51"} />
           {unreadNotifications > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadNotifications > 9 ? '9+' : unreadNotifications}</Text>
@@ -154,7 +154,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   greeting: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
   },
   helloText: {
     color: '#3A4D51',
@@ -169,8 +170,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 36,
-    height: 36,
+    width: 46,
+    height: 46,
     borderRadius: 18,
     backgroundColor: '#f3f4f6',
     justifyContent: 'center',
