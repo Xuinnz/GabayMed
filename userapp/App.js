@@ -94,7 +94,7 @@ export default function App() {
             onOpenNotifications={handleOpenNotifications}
           />
         );
-      case 'medical':
+      case 'chatbot':
         return (
           <SintomasAI
             onBack={() => setActiveTab('home')}

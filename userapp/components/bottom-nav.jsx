@@ -6,7 +6,7 @@ export function BottomNav({ activeTab, onTabChange, onAIClick }) {
   const navItems = [
     { id: "home", icon: Home, label: "Home", size: 22 },
     { id: "cases", icon: BriefcaseMedical, label: "Cases", size: 30 },
-    { id: "medical", icon: null, label: "Medical", isCustomImage: true, size: 58 },
+    { id: "chatbot", icon: null, label: "Chatbot", isCustomImage: true, size: 58 },
     { id: "facilities", icon: Hospital, label: "Facilities", size: 30 },
     { id: "settings", icon: Settings, label: "Settings", size: 22 },
   ];
@@ -14,7 +14,7 @@ export function BottomNav({ activeTab, onTabChange, onAIClick }) {
   return (
     <View style={[
       styles.container,
-      activeTab === 'medical' && styles.containerShrunk
+      activeTab === 'chatbot' && styles.containerShrunk
     ]}>
       <View style={styles.navContent}>
         {navItems.map((item, index) => {
