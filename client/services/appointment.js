@@ -109,6 +109,8 @@ export const appointmentAPI = {
           duration, 
           notes,
           provider_id,
+          patient_id, 
+          procedure_id,
           patients ( full_name ),
           procedures ( name )
         `)
@@ -124,12 +126,15 @@ export const appointmentAPI = {
         const dateObj = new Date(apt.appointment_date);
         return {
           id: apt.appointment_id,
+          patientId: apt.patient_id, // Added
           providerId: apt.provider_id,
-          time: dateObj.getHours(), // Extract hour (0-23) for grid placement
+          procedureId: apt.procedure_id, // Added
+          fullDate: apt.appointment_date, // Added for updates
+          time: dateObj.getHours(), 
           patient: apt.patients?.full_name || 'Unknown',
           procedure: apt.procedures?.name || 'General',
           status: apt.status,
-          operatory: 'Room 1', // Placeholder if no room column exists yet
+          operatory: 'Room 1', 
           length: apt.duration || 30,
           notes: apt.notes
         };
@@ -202,12 +207,13 @@ export const appointmentAPI = {
     }
   },
 
-  // 6. Get Peak Hours Data (Visits per hour for today)
-  async getPeakHoursData() {
+  // 6. Get Peak Hours Data (Visits per hour for specific date)
+  async getPeakHoursData(dateInput = null) {
     const facilityId = Session.getFacilityId();
-    const today = new Date().toISOString().split('T')[0];
-    const start = `${today}T00:00:00`;
-    const end = `${today}T23:59:59`;
+    // Use provided date or default to today
+    const targetDate = dateInput || new Date().toISOString().split('T')[0];
+    const start = `${targetDate}T00:00:00`;
+    const end = `${targetDate}T23:59:59`;
 
     try {
       const { data, error } = await supabase
@@ -258,6 +264,18 @@ export const appointmentAPI = {
     }
   },
 
+  // 6b. Get Single Peak Hour String for a Date
+  async getPeakHourForDate(date) {
+    const data = await this.getPeakHoursData(date);
+    if (!data || data.length === 0) return '-';
+    
+    // Find entry with max visits
+    const peak = data.reduce((max, current) => (current.visits > max.visits ? current : max), data[0]);
+    
+    // Only return time if there are actually visits
+    return peak.visits > 0 ? peak.time : '-';
+  },
+
   // 7. Get Upcoming Appointments for a Patient
   async getUpcomingAppointmentsByPatient(patientId) {
     const facilityId = Session.getFacilityId();
@@ -294,6 +312,31 @@ export const appointmentAPI = {
     } catch (error) {
       console.error("Get Patient Upcoming Appointments Error:", error.message);
       return [];
+    }
+  },
+
+  // 8. Update Appointment
+  async updateAppointment(id, updates) {
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          provider_id: updates.providerId,
+          procedure_id: updates.procedureId,
+          // appointment_date: updates.date, // Uncomment if you allow date/time changes
+          duration: parseInt(updates.duration),
+          status: updates.status,
+          notes: updates.notes
+        })
+        .eq('appointment_id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error("Update Appointment Error:", error.message);
+      return { success: false, error: error.message };
     }
   }
 };

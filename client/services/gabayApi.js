@@ -211,13 +211,15 @@ export const GabayAPI = {
             // 2. Number of staffs
             supabase.from('providers').select('*', {count: "exact", head: true}).eq('facility_id', facilityID),
             
-            // 3. Total Income
+            // 3. Total Income (TODAY ONLY)
             // We use !inner to ensure we only get ledger entries linked to appointments at this facility
             supabase
                 .from('ledger')
-                .select('total_bill_amount, appointments!inner(facility_id)')
+                .select('total_bill_amount, patients!inner(facility_id)')
                 .eq('payment_status', 'PAID')
-                .eq('appointments.facility_id', facilityID),
+                .eq('patients.facility_id', facilityID)
+                .gte('date', start) // Filter for today start
+                .lte('date', end),  // Filter for today end
 
             // 4. Total Patients (From Patients Table)
             supabase
@@ -226,8 +228,9 @@ export const GabayAPI = {
                 .eq('facility_id', facilityID)
         ]);
 
+        // Calculate Income: Convert negative payment amounts to positive
         const totalIncome = income.data 
-        ? income.data.reduce((sum, row) => sum + (row.total_bill_amount || 0), 0): 0;
+        ? income.data.reduce((sum, row) => sum + Math.abs(row.total_bill_amount || 0), 0): 0;
 
         return {
             totalPatients: patients.count || 0,

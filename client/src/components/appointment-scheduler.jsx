@@ -68,6 +68,39 @@ export function AppointmentScheduler() {
     return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
   }
 
+  // NEW FUNCTION: Handle slot clicks to initialize form data
+  const handleSlotClick = (providerId, time, appointment) => {
+    setSelectedSlot({ providerId, time, date: selectedDate, appointment })
+    
+    if (!appointment) {
+      // Initialize form data so "Save" button works immediately
+      setFormData({
+        patient: '',
+        patientId: null,
+        status: 'PENDING', 
+        procedure: '',
+        operatory: '',
+        primaryProvider: providerId.toString(), 
+        additionalProvider: '',
+        length: '30',
+        notes: ''
+      })
+    } else {
+      // POPULATE FORM FOR EDITING
+      setFormData({
+        patient: appointment.patient,
+        patientId: appointment.patientId,
+        status: appointment.status,
+        procedure: appointment.procedureId ? appointment.procedureId.toString() : '',
+        operatory: appointment.operatory || 'Room 101',
+        primaryProvider: appointment.providerId.toString(),
+        additionalProvider: '',
+        length: appointment.length.toString(),
+        notes: appointment.notes || ''
+      })
+    }
+  }
+
   const handleNewAppointment = () => {
     if (providers.length === 0) return;
     
@@ -75,7 +108,7 @@ export function AppointmentScheduler() {
     setFormData({
       patient: '',
       patientId: null,
-      status: 'unconfirmed',
+      status: 'PENDING', // Changed from 'unconfirmed' to match Select options
       procedure: '',
       operatory: '',
       primaryProvider: providers[0].id.toString(),
@@ -134,6 +167,31 @@ export function AppointmentScheduler() {
         setSelectedSlot(null); // Close panel
     } else {
         alert("Failed to create appointment: " + result.error);
+    }
+  }
+  // ------------------
+
+  // --- Update Logic ---
+  const handleUpdate = async () => {
+    if (!selectedSlot?.appointment?.id) return;
+
+    const updates = {
+        providerId: formData.primaryProvider,
+        procedureId: formData.procedure,
+        duration: formData.length,
+        status: formData.status,
+        notes: formData.notes
+    };
+
+    const result = await appointmentAPI.updateAppointment(selectedSlot.appointment.id, updates);
+    
+    if (result.success) {
+        // Refresh Grid
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+        setSelectedSlot(null); // Close panel
+    } else {
+        alert("Failed to update appointment: " + result.error);
     }
   }
   // ------------------
@@ -234,9 +292,8 @@ export function AppointmentScheduler() {
                       className={`border-b border-l min-h-[100px] p-2 relative group cursor-pointer transition-colors ${
                         appointment ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-slate-50"
                       }`}
-                      onClick={() =>
-                        setSelectedSlot({ providerId: provider.id, time: hour, date: selectedDate, appointment })
-                      }
+                      // UPDATED: Use the new handler instead of inline function
+                      onClick={() => handleSlotClick(provider.id, hour, appointment)}
                     >
                       {appointment ? (
                         <div className="space-y-1">
@@ -306,7 +363,7 @@ export function AppointmentScheduler() {
                     placeholder="Search patient..."
                     value={selectedSlot.appointment?.patient || formData.patient}
                     onChange={(e) => handlePatientSearch(e.target.value)}
-                    disabled={!!selectedSlot.appointment}
+                    disabled={!!selectedSlot.appointment} // Keep Patient locked for edits to avoid confusion
                   />
                   {/* Search Results Dropdown */}
                   {!selectedSlot.appointment && patientSearchResults.length > 0 && (
@@ -328,9 +385,9 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Status <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={selectedSlot.appointment?.status || formData.status}
+                  value={formData.status} // Use formData directly
                   onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
@@ -349,9 +406,9 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Procedures <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={selectedSlot.appointment?.procedure || formData.procedure}
+                  value={formData.procedure} // Use formData directly
                   onValueChange={(value) => setFormData({ ...formData, procedure: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select procedure" />
@@ -371,9 +428,9 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Operatory <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={selectedSlot.appointment?.operatory || formData.operatory}
+                  value={formData.operatory} // Use formData directly
                   onValueChange={(value) => setFormData({ ...formData, operatory: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select room" />
@@ -390,9 +447,9 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Primary Provider <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={selectedSlot.appointment?.providerId?.toString() || formData.primaryProvider || selectedSlot.providerId.toString()}
+                  value={formData.primaryProvider} // Use formData directly
                   onValueChange={(value) => setFormData({ ...formData, primaryProvider: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
@@ -412,7 +469,7 @@ export function AppointmentScheduler() {
                 <Select 
                   value={formData.additionalProvider}
                   onValueChange={(value) => setFormData({ ...formData, additionalProvider: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select additional provider" />
@@ -430,9 +487,9 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Length (minutes) <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={selectedSlot.appointment?.length?.toString() || formData.length}
+                  value={formData.length} // Use formData directly
                   onValueChange={(value) => setFormData({ ...formData, length: value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select duration" />
@@ -455,14 +512,14 @@ export function AppointmentScheduler() {
                   rows={3}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  disabled={!!selectedSlot.appointment}
+                  // Removed disabled prop
                 />
               </div>
 
               <div className="pt-4 flex gap-2">
                 {selectedSlot.appointment ? (
                   <>
-                    <Button className="w-full bg-blue-500">Update</Button>
+                    <Button className="w-full bg-blue-500" onClick={handleUpdate}>Update</Button>
                     <Button variant="destructive" className="w-full">
                       Cancel Appointment
                     </Button>

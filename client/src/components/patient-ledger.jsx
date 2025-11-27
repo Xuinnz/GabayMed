@@ -57,6 +57,18 @@ export function PatientLedger({ patientId }) {
            parseFloat(procedureForm.amount) > 0
   }
 
+  // Helper: Map payment codes to friendly descriptions
+  const getPaymentDescription = (code) => {
+    const methods = {
+      'cash': 'Cash',
+      'check': 'Check',
+      'cc': 'Credit Card',
+      'ins_check': 'Insurance Check',
+      'ins_eft': 'Insurance EFT'
+    };
+    return methods[code] || code; // Fallback to raw code if not found
+  };
+
   // Fetch transactions from API
   const fetchTransactions = async () => {
     if (patientId) {
@@ -386,8 +398,17 @@ export function PatientLedger({ patientId }) {
                     <TableRow key={t.id}>
                       <TableCell>{t.date}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{t.created}</TableCell>
-                      <TableCell className="font-mono text-sm">{t.code}</TableCell>
-                      <TableCell>{t.description}</TableCell>
+                      
+                      {/* Updated Code Column: Show 'PMT' for payments, otherwise show code */}
+                      <TableCell className="font-mono text-sm">
+                        {t.amount < 0 ? "PMT" : t.code}
+                      </TableCell>
+                      
+                      {/* Updated Description Column: Show friendly payment name or original description */}
+                      <TableCell>
+                        {t.amount < 0 ? getPaymentDescription(t.code) : t.description}
+                      </TableCell>
+                      
                       <TableCell>{t.provider}</TableCell>
                       <TableCell className={`text-right font-medium ${t.amount < 0 ? "text-green-600" : "text-slate-900"}`}>
                         {t.amount < 0 ? "(" : ""}₱{Math.abs(t.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}

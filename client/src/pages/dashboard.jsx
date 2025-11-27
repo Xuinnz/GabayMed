@@ -7,7 +7,8 @@ import { AppointmentsList } from "@/components/appointments-list"
 import { CalendarView } from "@/components/calendar-view"
 import { RecentActivity } from "@/components/recent-activity"
 import { UpcomingSection } from "@/components/upcoming-sections"
-import { GabayAPI } from "../../services/gabayApi.js" // Adjust path if needed
+import { GabayAPI } from "../../services/gabayApi.js" 
+import { appointmentAPI } from "../../services/appointment.js" // Added import
 
 
 export default function DashboardPage() {
@@ -28,15 +29,21 @@ export default function DashboardPage() {
         const today = new Date().toISOString().split('T')[0];
 
         // 1. Fetch Stats, Schedule, and Upcoming in parallel
-        const [statsData, scheduleData, upcomingData] = await Promise.all([ // <--- Capture 3rd result
+        const [statsData, scheduleData, upcomingData] = await Promise.all([ 
           GabayAPI.getDashboardStats(),
           GabayAPI.getFacilitySchedule(today),
           GabayAPI.getUpcomingSchedule(today)
         ]);
 
+        // 2. Enrich Upcoming Data with Peak Hours
+        const enrichedUpcoming = await Promise.all(upcomingData.map(async (item) => {
+          const peak = await appointmentAPI.getPeakHourForDate(item.date);
+          return { ...item, peakHour: peak };
+        }));
+
         setStats(statsData);
         setAppointments(scheduleData);
-        setUpcoming(upcomingData); // <--- Set State
+        setUpcoming(enrichedUpcoming); // Set enriched data
       } catch (error) {
         console.error("Failed to load dashboard:", error);
       } finally {
