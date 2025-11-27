@@ -1,38 +1,62 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Home, Heart, FileText, Building2, Settings } from 'lucide-react-native';
-import Svg, { Path } from 'react-native-svg';
+import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Home, Settings, BriefcaseMedical, Hospital } from 'lucide-react-native';
 
 export function BottomNav({ activeTab, onTabChange, onAIClick }) {
   const navItems = [
-    { id: "home", icon: Home, label: "Home" },
-    { id: "cases", icon: FileText, label: "Cases" },
-    { id: "ai", icon: null, label: "AI" },
-    { id: "medical", icon: Heart, label: "Medical" },
-    { id: "facilities", icon: Building2, label: "Facilities" },
-    { id: "settings", icon: Settings, label: "Settings" },
+    { id: "home", icon: Home, label: "Home", size: 22 },
+    { id: "cases", icon: BriefcaseMedical, label: "Cases", size: 30 },
+    { id: "medical", icon: null, label: "Medical", isCustomImage: true, size: 58 },
+    { id: "facilities", icon: Hospital, label: "Facilities", size: 30 },
+    { id: "settings", icon: Settings, label: "Settings", size: 22 },
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      activeTab === 'medical' && styles.containerShrunk
+    ]}>
       <View style={styles.navContent}>
         {navItems.map((item, index) => {
           if (item.id === "ai") {
             return (
               <View key={item.id} style={styles.aiButtonWrapper}>
-                <TouchableOpacity onPress={onAIClick} style={styles.aiButton}>
-                  <View style={styles.aiButtonInner}>
-                    <Svg width={24} height={24} viewBox="0 0 24 24" fill="white">
-                      <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </Svg>
-                  </View>
+                <TouchableOpacity onPress={onAIClick}>
+                  <Image 
+                    source={require('../assets/ailogo.svg')} 
+                    style={styles.aiLogo}
+                    resizeMode="contain"
+                  />
                 </TouchableOpacity>
               </View>
             );
           }
 
+          if (item.isCustomImage) {
+            return (
+              <TouchableOpacity
+                key={item.id}
+                onPress={() => onTabChange(item.id)}
+                style={styles.navButton}
+              >
+                <Image 
+                  source={require('../assets/mainbutton.jpg')} 
+                  style={[
+                    {
+                      width: item.size,
+                      height: item.size,
+                      opacity: activeTab === item.id ? 1 : 0.6
+                    }
+                  ]}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            );
+          }
+
+          if (!item.icon) return null;
+          
           const Icon = item.icon;
-          if (!Icon) return null;
 
           return (
             <TouchableOpacity
@@ -40,10 +64,17 @@ export function BottomNav({ activeTab, onTabChange, onAIClick }) {
               onPress={() => onTabChange(item.id)}
               style={styles.navButton}
             >
-              <Icon 
-                size={24} 
-                color={activeTab === item.id ? "#0ea5e9" : "#9ca3af"} 
-              />
+              <View style={[
+                styles.iconWrapper,
+                activeTab === item.id && styles.iconWrapperActive
+              ]}>
+                <Icon 
+                  color={activeTab === item.id ? "#fff" : "#66BAFF"}
+                  size={item.size}
+                  fill={activeTab === item.id ? "none" : "none"}
+                  strokeWidth={2}
+                />
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -64,6 +95,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     paddingBottom: 20,
+    overflow: 'hidden',
+  },
+  containerShrunk: {
+    height: 0,
+    paddingVertical: 0,
+    paddingBottom: 0,
+    borderTopWidth: 0,
   },
   navContent: {
     flexDirection: 'row',
@@ -77,32 +115,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 12,
   },
+    iconWrapper: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  iconWrapperActive: {
+    backgroundColor: '#66BAFF',
+  },
   aiButtonWrapper: {
     position: 'absolute',
     left: '50%',
     top: -24,
-    marginLeft: -28,
+    marginLeft: -24,
     zIndex: 10,
   },
-  aiButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0ea5e9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  aiButtonInner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#38bdf8',
-    justifyContent: 'center',
-    alignItems: 'center',
+  aiLogo: {
+    width: 48,
+    height: 48,
   },
 });

@@ -1,32 +1,111 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { MessageCircle, Bell } from 'lucide-react-native';
 
 export function AppHeader({ onOpenMessages, onOpenNotifications }) {
+  const [userData, setUserData] = useState({
+    firstName: 'Red',
+    lastName: 'Gabriel',
+    initials: 'RG',
+    avatar: null
+  });
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [greeting, setGreeting] = useState('Hello');
+
+  useEffect(() => {
+    fetchUserData();
+    fetchUnreadCounts();
+    updateGreeting();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      // TODO: Replace with actual API call
+      // const response = await fetch('YOUR_API_ENDPOINT/user/profile');
+      // const data = await response.json();
+      
+      // Simulated data for now
+      setTimeout(() => {
+        setUserData({
+          firstName: 'Red',
+          lastName: 'Gabriel',
+          initials: 'RG',
+          avatar: null // Set to image URL if available
+        });
+      }, 100);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  const fetchUnreadCounts = async () => {
+    try {
+      // TODO: Replace with actual API call
+      // const response = await fetch('YOUR_API_ENDPOINT/unread-counts');
+      // const data = await response.json();
+      
+      // Simulated data for now
+      setTimeout(() => {
+        setUnreadMessages(2);
+        setUnreadNotifications(3);
+      }, 100);
+    } catch (error) {
+      console.error('Error fetching unread counts:', error);
+    }
+  };
+
+  const updateGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      setGreeting('Good morning');
+    } else if (hour < 18) {
+      setGreeting('Good afternoon');
+    } else {
+      setGreeting('Good evening');
+    }
+  };
+
+  const getInitials = () => {
+    if (userData.initials) return userData.initials;
+    return `${userData.firstName?.charAt(0) || ''}${userData.lastName?.charAt(0) || ''}`;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.leftSection}>
         <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>RG</Text>
-          </View>
+          {userData.avatar ? (
+            <Image source={{ uri: userData.avatar }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{getInitials()}</Text>
+            </View>
+          )}
         </View>
         <View>
           <Text style={styles.greeting}>
-            <Text style={styles.helloText}>Hello, </Text>
-            <Text style={styles.nameText}>Red Gabriel</Text>
+            <Text style={styles.helloText}>{greeting}, </Text>
+            <Text style={styles.nameText}>{userData.firstName}</Text>
           </Text>
         </View>
       </View>
       <View style={styles.rightSection}>
         <TouchableOpacity onPress={onOpenMessages} style={styles.iconButton}>
           <MessageCircle size={20} color="#4b5563" />
+          {unreadMessages > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+            </View>
+          )}
         </TouchableOpacity>
         <TouchableOpacity onPress={onOpenNotifications} style={styles.iconButton}>
           <Bell size={20} color="#4b5563" />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>3</Text>
-          </View>
+          {unreadNotifications > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadNotifications > 9 ? '9+' : unreadNotifications}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -64,6 +143,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   avatarText: {
     color: '#0ea5e9',
     fontSize: 16,
@@ -73,11 +157,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   helloText: {
-    color: '#6b7280',
+    color: '#3A4D51',
   },
   nameText: {
-    color: '#0ea5e9',
-    fontWeight: '600',
+    color: '#3A4D51',
+    fontWeight: '800',
   },
   rightSection: {
     flexDirection: 'row',

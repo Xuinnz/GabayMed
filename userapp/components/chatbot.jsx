@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
-import { ArrowLeft, Send, MapPin, Home } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Linking } from 'react-native';
+import { ArrowLeft, Send, MapPin, Home, Paperclip, Mic } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import MapView, { Marker } from 'react-native-maps';
 
 export function SintomasAI({ onBack, isModal = false }) {
   const [messages, setMessages] = useState([
@@ -54,14 +56,17 @@ The nearest facility that can assist you is:`,
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={['#66BAFF', '#83BFF0']}
+        style={styles.header}
+      >
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={20} color="#fff" />
+          <ArrowLeft size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>SintomasAI</Text>
-        <Home size={20} color="#fff" />
-      </View>
+        <View style={{ width: 32 }} />
+      </LinearGradient>
 
       {/* Chat Messages */}
       <ScrollView 
@@ -69,8 +74,7 @@ The nearest facility that can assist you is:`,
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
       >
-        <View style={styles.chatBorder}>
-          {messages.map((message) => (
+        {messages.map((message) => (
             <View 
               key={message.id} 
               style={[
@@ -84,16 +88,41 @@ The nearest facility that can assist you is:`,
                   {message.showMap && (
                     <View style={styles.mapContainer}>
                       <View style={styles.mapView}>
-                        <TouchableOpacity style={styles.mapButton}>
+                        <MapView
+                          style={styles.map}
+                          initialRegion={{
+                            latitude: 14.5764,
+                            longitude: 120.9883,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                          }}
+                          scrollEnabled={false}
+                          zoomEnabled={false}
+                          pitchEnabled={false}
+                          rotateEnabled={false}
+                        >
+                          <Marker
+                            coordinate={{
+                              latitude: 14.5764,
+                              longitude: 120.9883,
+                            }}
+                            title="Philippine General Hospital"
+                            description="(Manila) ~2.1 km away"
+                          />
+                        </MapView>
+                        <TouchableOpacity 
+                          style={styles.mapButton}
+                          onPress={() => {
+                            const url = Platform.select({
+                              ios: 'maps:0,0?q=Philippine+General+Hospital@14.5764,120.9883',
+                              android: 'geo:0,0?q=14.5764,120.9883(Philippine+General+Hospital)',
+                            });
+                            Linking.openURL(url);
+                          }}
+                        >
                           <MapPin size={12} color="#fff" />
                           <Text style={styles.mapButtonText}>View on Maps</Text>
                         </TouchableOpacity>
-                        <View style={styles.mapPlaceholder}>
-                          <Text style={styles.mapPlaceholderText}>🗺️</Text>
-                        </View>
-                        <View style={styles.hospitalPin}>
-                          <Text style={styles.hospitalPinText}>H</Text>
-                        </View>
                       </View>
                       <View style={styles.locationInfo}>
                         <MapPin size={16} color="#0ea5e9" />
@@ -112,25 +141,34 @@ The nearest facility that can assist you is:`,
               )}
             </View>
           ))}
-        </View>
       </ScrollView>
 
       {/* Input Area */}
-      <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.input}
-            value={inputValue}
-            onChangeText={setInputValue}
-            onSubmitEditing={handleSend}
-            placeholder="Describe your symptoms..."
-            placeholderTextColor="#9ca3af"
-            multiline
-          />
+      <View style={styles.inputContainerWrapper}>
+        <View style={styles.inputContainer}>
+          <View style={styles.inputIcons}>
+            <TouchableOpacity style={styles.iconButton}>
+              <Paperclip size={20} color="#9ca3af" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton}>
+              <Mic size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              value={inputValue}
+              onChangeText={setInputValue}
+              onSubmitEditing={handleSend}
+              placeholder="Describe your symptoms..."
+              placeholderTextColor="#d1d5db"
+              multiline
+            />
+          </View>
+          <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+            <Send size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-          <Send size={20} color="#fff" />
-        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -161,7 +199,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    backgroundColor: '#0ea5e9',
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 48,
@@ -186,41 +223,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   messagesContent: {
-    padding: 16,
-  },
-  chatBorder: {
-    borderWidth: 2,
-    borderColor: '#bae6fd',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 16,
-    minHeight: 400,
+    padding: 20,
   },
   messageWrapper: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   userMessageWrapper: {
     alignItems: 'flex-end',
   },
   aiMessageContainer: {
-    maxWidth: '100%',
+    maxWidth: '90%',
+    backgroundColor: '#E8F5FF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
   },
   aiMessageText: {
     fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
+    color: '#1f2937',
+    lineHeight: 22,
   },
   userMessageBubble: {
-    backgroundColor: '#0ea5e9',
+    backgroundColor: '#f3f4f6',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 16,
     borderBottomRightRadius: 4,
-    maxWidth: '80%',
+    maxWidth: '85%',
   },
   userMessageText: {
     fontSize: 14,
-    color: '#fff',
+    color: '#1f2937',
   },
   mapContainer: {
     marginTop: 12,
@@ -231,53 +265,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     height: 144,
   },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
   mapButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#0ea5e9',
+    backgroundColor: '#60a5fa',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   mapButtonText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: '600',
   },
-  mapPlaceholder: {
-    flex: 1,
-    backgroundColor: '#e5e7eb',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mapPlaceholderText: {
-    fontSize: 48,
-  },
-  hospitalPin: {
-    position: 'absolute',
-    top: '50%',
-    left: '33%',
-    width: 32,
-    height: 32,
-    backgroundColor: '#ef4444',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  hospitalPinText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+
   locationInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -296,33 +311,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
   },
+  inputContainerWrapper: {
+    padding: 16,
+    paddingBottom: 20,
+  },
   inputContainer: {
     flexDirection: 'row',
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    alignItems: 'flex-end',
+    borderRadius: 30,
+    alignItems: 'center',
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  inputIcons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputWrapper: {
     flex: 1,
   },
   input: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 20,
+    backgroundColor: '#f9fafb',
+    borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 14,
     maxHeight: 100,
+    color: '#1f2937',
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0ea5e9',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#60a5fa',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   modalOverlay: {
     flex: 1,
