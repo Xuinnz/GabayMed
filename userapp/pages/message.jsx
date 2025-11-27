@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { ArrowLeft, Search } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ConversationView } from '../components/conversation-view';
 
 export function MessagesPage({ onBack }) {
@@ -47,12 +48,15 @@ export function MessagesPage({ onBack }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <LinearGradient
+        colors={['#66BAFF', '#83BFF0']}
+        style={styles.header}
+      >
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <ArrowLeft size={20} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Messages</Text>
-      </View>
+      </LinearGradient>
 
       <View style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
@@ -104,7 +108,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
-    backgroundColor: '#0ea5e9',
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 48,

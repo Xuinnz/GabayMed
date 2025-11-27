@@ -77,18 +77,27 @@ export default function App() {
             onOpenNotifications={handleOpenNotifications}
             onOpenAI={handleOpenAI}
             onOpenAppointmentBooking={handleOpenAppointmentBooking}
+            onNavigateToCases={() => setActiveTab('cases')}
           />
         );
-      case 'facilities':
+      case 'cases':
         return (
           <SeekMedicalCare
             onOpenMessages={handleOpenMessages}
             onOpenNotifications={handleOpenNotifications}
           />
         );
-      case 'medical':
+      case 'facilities':
         return (
           <MyFacilities
+            onOpenMessages={handleOpenMessages}
+            onOpenNotifications={handleOpenNotifications}
+          />
+        );
+      case 'chatbot':
+        return (
+          <SintomasAI
+            onBack={() => setActiveTab('home')}
             onOpenMessages={handleOpenMessages}
             onOpenNotifications={handleOpenNotifications}
           />

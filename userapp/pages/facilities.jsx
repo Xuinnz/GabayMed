@@ -1,64 +1,66 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
 import { Calendar, X, ChevronRight, CreditCard, Building2, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
+import { AppointmentBooking } from '../components/appointment';
+import { facilitiesData, schedulesData, activitiesData, balancesData } from '../data/facilitiesData';
 
 export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
   const [selectedFacility, setSelectedFacility] = useState("pgh");
   const [showAllBalances, setShowAllBalances] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAppointment, setShowAppointment] = useState(false);
   const [selectedProcedure, setSelectedProcedure] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [facilities, setFacilities] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [balances, setBalances] = useState([]);
 
-  const facilities = [
-    {
-      id: "pgh",
-      name: "Philippine General Hospital",
-      insurancePlan: "Insurance Plan Used",
-      lastVisit: "Oct 24",
-    },
-    {
-      id: "uerm",
-      name: "UERM Medical Center",
-      insurancePlan: "HMO Coverage",
-      lastVisit: "Sep 15",
-    },
-  ];
+  useEffect(() => {
+    fetchFacilitiesData();
+  }, []);
 
-  const schedules = [
-    {
-      id: "1",
-      date: "07",
-      month: "Nov",
-      status: "Scheduled",
-      procedure: "General Check-up",
-      doctor: "Dr. Jasper King Gueco",
-      room: "Room 101",
-    },
-    {
-      id: "2",
-      date: "07",
-      month: "Nov",
-      status: "Done",
-      procedure: "General Check-up",
-      doctor: "Dr. Jasper King Gueco",
-      room: "Room 101",
-    },
-  ];
+  const fetchFacilitiesData = async () => {
+    try {
+      setLoading(true);
+      // TODO: Replace with actual API calls
+      // const facilitiesRes = await fetch('YOUR_API_ENDPOINT/facilities');
+      // const schedulesRes = await fetch('YOUR_API_ENDPOINT/schedules');
+      // const activitiesRes = await fetch('YOUR_API_ENDPOINT/activities');
+      // const balancesRes = await fetch('YOUR_API_ENDPOINT/balances');
+      
+      // Simulated data
+      setTimeout(() => {
+        setFacilities(facilitiesData);
+        setSchedules(schedulesData);
+        setActivities(activitiesData);
+        setBalances(balancesData);
 
-  const activities = [
-    { id: "1", type: "payment", description: "Service Availed", time: "10:32 AM", amount: -450 },
-    { id: "2", type: "cashback", description: "Cashback?", time: "10:32 AM", amount: 150 },
-  ];
-
-  const balances = [
-    { id: "1", procedure: "Laboratory Tests", amount: 2500, date: "Nov 5, 2024" },
-    { id: "2", procedure: "X-Ray Imaging", amount: 1800, date: "Oct 28, 2024" },
-    { id: "3", procedure: "Consultation Fee", amount: 800, date: "Oct 24, 2024" },
-  ];
+        setLoading(false);
+      }, 800);
+    } catch (error) {
+      console.error('Error fetching facilities data:', error);
+      Alert.alert('Error', 'Failed to load facilities data');
+      setLoading(false);
+    }
+  };
 
   const totalBalance = balances.reduce((sum, b) => sum + b.amount, 0);
   const currentFacility = facilities.find((f) => f.id === selectedFacility);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0ea5e9" />
+          <Text style={styles.loadingText}>Loading facilities...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -89,7 +91,10 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                 </View>
                 <Text style={styles.lastVisitText}>Last Visit {currentFacility.lastVisit}</Text>
               </View>
-              <TouchableOpacity style={styles.scheduleButton}>
+              <TouchableOpacity 
+                style={styles.scheduleButton}
+                onPress={() => setShowAppointment(true)}
+              >
                 <Calendar size={16} color="#fff" />
                 <Text style={styles.scheduleButtonText}>Schedule New Appointment</Text>
               </TouchableOpacity>
@@ -328,6 +333,12 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
           </View>
         </View>
       </Modal>
+
+      {/* Appointment Booking Modal */}
+      <AppointmentBooking
+        visible={showAppointment}
+        onClose={() => setShowAppointment(false)}
+      />
     </View>
   );
 }
@@ -750,5 +761,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6b7280',
   },
 });

@@ -1,21 +1,33 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import { X, Calendar, Clock, ChevronLeft } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { 
+  X, 
+  Calendar, 
+  Clock, 
+  ChevronLeft,
+  Hospital,
+  Brain,
+  User,
+  HeartPulse,
+  Bone,
+  Droplet
+} from 'lucide-react-native';
 
-export function AppointmentBooking({ onClose, visible = true }) {
-  const [step, setStep] = useState("service");
-  const [selectedService, setSelectedService] = useState(null);
+export function AppointmentBooking({ onClose, visible = true, initialService = null }) {
+  const [step, setStep] = useState(initialService ? "provider" : "service");
+  const [selectedService, setSelectedService] = useState(initialService);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
 
   const services = [
-    { id: "1", name: "General Check-up", icon: "👨‍⚕️" },
-    { id: "2", name: "Neurologist", icon: "🧠" },
-    { id: "3", name: "Psychiatric", icon: "🧘" },
-    { id: "4", name: "Cardiologist", icon: "❤️" },
-    { id: "5", name: "Orthopedic", icon: "🦴" },
-    { id: "6", name: "Dermatologist", icon: "💉" },
+    { id: "1", name: "General Check-up", icon: Hospital, gradientColors: ['#66BAFF', '#83BFF0'] },
+    { id: "2", name: "Neurologist", icon: Brain, gradientColors: ['#66BAFF', '#83BFF0'] },
+    { id: "3", name: "Psychiatric", icon: User, gradientColors: ['#66BAFF', '#83BFF0'] },
+    { id: "4", name: "Cardiologist", icon: HeartPulse, gradientColors: ['#66BAFF', '#83BFF0'] },
+    { id: "5", name: "Orthopedic", icon: Bone, gradientColors: ['#66BAFF', '#83BFF0'] },
+    { id: "6", name: "Dermatologist", icon: Droplet, gradientColors: ['#66BAFF', '#83BFF0'] },
   ];
 
   const providers = [
@@ -68,7 +80,13 @@ export function AppointmentBooking({ onClose, visible = true }) {
   };
 
   const handleBack = () => {
-    if (step === "provider") setStep("service");
+    if (step === "provider") {
+      if (initialService) {
+        onClose();
+      } else {
+        setStep("service");
+      }
+    }
     else if (step === "calendar") setStep("provider");
     else if (step === "time") {
       if (selectedProvider) setStep("calendar");
@@ -88,7 +106,7 @@ export function AppointmentBooking({ onClose, visible = true }) {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              {step !== "service" && (
+              {(step !== "service" || initialService) && (
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                   <ChevronLeft size={20} color="#1f2937" />
                 </TouchableOpacity>
@@ -106,16 +124,24 @@ export function AppointmentBooking({ onClose, visible = true }) {
               <View>
                 <Text style={styles.stepDescription}>Which service do you need?</Text>
                 <View style={styles.optionsList}>
-                  {services.map((service) => (
-                    <TouchableOpacity
-                      key={service.id}
-                      onPress={() => handleSelectService(service.id)}
-                      style={styles.optionCard}
-                    >
-                      <Text style={styles.optionIcon}>{service.icon}</Text>
-                      <Text style={styles.optionText}>{service.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {services.map((service) => {
+                    const IconComponent = service.icon;
+                    return (
+                      <TouchableOpacity
+                        key={service.id}
+                        onPress={() => handleSelectService(service.id)}
+                        style={styles.optionCard}
+                      >
+                        <LinearGradient
+                          colors={service.gradientColors}
+                          style={styles.optionIcon}
+                        >
+                          <IconComponent size={24} color="#fff" strokeWidth={2} />
+                        </LinearGradient>
+                        <Text style={styles.optionText}>{service.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -280,7 +306,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   optionIcon: {
-    fontSize: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   optionText: {
     fontSize: 15,
