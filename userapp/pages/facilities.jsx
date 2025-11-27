@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,
 import { Calendar, X, ChevronRight, CreditCard, Building2, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
 import { AppointmentBooking } from '../components/appointment';
+import { GradientButton, GradientText, GradientIcon } from '../components/ui/gradient-button';
 import { facilitiesData, schedulesData, activitiesData, balancesData } from '../data/facilitiesData';
 
 export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
   const [selectedFacility, setSelectedFacility] = useState("pgh");
   const [showAllBalances, setShowAllBalances] = useState(false);
+  const [showAllSchedules, setShowAllSchedules] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
   const [selectedProcedure, setSelectedProcedure] = useState("");
@@ -17,6 +19,44 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
   const [schedules, setSchedules] = useState([]);
   const [activities, setActivities] = useState([]);
   const [balances, setBalances] = useState([]);
+
+  // Reusable ScheduleCard component
+  const ScheduleCard = ({ schedule, isSmall }) => {
+    const statusStyles = {
+      Scheduled: { badge: styles.scheduledBadge, text: styles.scheduledText },
+      Done: { badge: styles.doneBadge, text: styles.doneText },
+      Cancelled: { badge: styles.cancelledBadge, text: styles.cancelledText },
+    };
+    const { badge, text } = statusStyles[schedule.status] || statusStyles.Scheduled;
+
+    return (
+      <View style={isSmall ? styles.scheduleCardGrid : styles.scheduleCard}>
+        <View style={styles.scheduleTopRow}>
+          <GradientIcon style={[styles.scheduleCalendarIcon, isSmall && { width: 35, height: 35, marginTop: 12 }]}>
+            <Calendar size={isSmall ? 18 : 24} color="#fff" />
+          </GradientIcon>
+          <View style={styles.scheduleDateContainer}>
+            <GradientText style={[styles.scheduleMonthText, isSmall && { fontSize: 20, marginBottom: -4 }]}>
+              {schedule.month}
+            </GradientText>
+            <GradientText style={[styles.scheduleDate, isSmall && { fontSize: 32, lineHeight: 36 }]}>
+              {schedule.date}
+            </GradientText>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, badge]}>
+          <Text style={[styles.statusText, text]}>{schedule.status}</Text>
+        </View>
+        <View style={styles.scheduleDetails}>
+          <GradientText style={[styles.scheduleProcedure, isSmall && { fontSize: 16 }]}>
+            {schedule.procedure}
+          </GradientText>
+          <Text style={styles.scheduleDoctor}>{schedule.doctor}</Text>
+          <Text style={styles.scheduleRoom}>{schedule.room}</Text>
+        </View>
+      </View>
+    );
+  };
 
   useEffect(() => {
     fetchFacilitiesData();
@@ -91,13 +131,13 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                 </View>
                 <Text style={styles.lastVisitText}>Last Visit {currentFacility.lastVisit}</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.scheduleButton}
+              <GradientButton 
                 onPress={() => setShowAppointment(true)}
+                style={styles.scheduleButton}
               >
-                <Calendar size={16} color="#fff" />
+                <Calendar size={22} color="#66BAFF" fill="#fff" />
                 <Text style={styles.scheduleButtonText}>Schedule New Appointment</Text>
-              </TouchableOpacity>
+              </GradientButton>
             </View>
           )}
 
@@ -132,38 +172,24 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Your Schedule</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAllButton}>See All</Text>
+                <TouchableOpacity onPress={() => setShowAllSchedules(!showAllSchedules)}>
+                  <Text style={styles.seeAllButton}>{showAllSchedules ? 'Show Less' : 'See All'}</Text>
                 </TouchableOpacity>
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scheduleScroll}>
-                {schedules.map((schedule) => (
-                  <View key={schedule.id} style={styles.scheduleCard}>
-                    <View style={styles.scheduleMonth}>
-                      <Calendar size={16} color="#0ea5e9" />
-                      <Text style={styles.scheduleMonthText}>{schedule.month}</Text>
-                    </View>
-                    <Text style={styles.scheduleDate}>{schedule.date}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      schedule.status === "Scheduled" ? styles.scheduledBadge : styles.doneBadge
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        schedule.status === "Scheduled" ? styles.scheduledText : styles.doneText
-                      ]}>
-                        {schedule.status}
-                      </Text>
-                    </View>
-                    <View style={styles.scheduleDetails}>
-                      <Text style={styles.scheduleProcedure}>{schedule.procedure}</Text>
-                      <Text style={styles.scheduleDoctor}>{schedule.doctor}</Text>
-                      <Text style={styles.scheduleRoom}>{schedule.room}</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
+              {showAllSchedules ? (
+                <View style={styles.scheduleGrid}>
+                  {schedules.map((schedule) => (
+                    <ScheduleCard key={schedule.id} schedule={schedule} isSmall />
+                  ))}
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scheduleScroll}>
+                  {schedules.map((schedule) => (
+                    <ScheduleCard key={schedule.id} schedule={schedule} />
+                  ))}
+                </ScrollView>
+              )}
             </View>
 
             {/* Account Activity */}
@@ -184,9 +210,9 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                         activity.amount < 0 ? styles.paymentIcon : styles.cashbackIcon
                       ]}>
                         {activity.amount < 0 ? (
-                          <ArrowUpRight size={16} color="#ef4444" />
+                          <ArrowUpRight size={20} color="#fff" />
                         ) : (
-                          <ArrowDownLeft size={16} color="#22c55e" />
+                          <ArrowDownLeft size={20} color="#fff" />
                         )}
                       </View>
                       <View>
@@ -245,7 +271,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                 ))}
               </View>
 
-              <TouchableOpacity
+              <GradientButton
                 onPress={() => {
                   setShowAllBalances(false);
                   setShowPaymentModal(true);
@@ -254,7 +280,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
               >
                 <CreditCard size={16} color="#fff" />
                 <Text style={styles.makePaymentButtonText}>Make Payment</Text>
-              </TouchableOpacity>
+              </GradientButton>
             </View>
           </View>
         </View>
@@ -326,9 +352,9 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.confirmPaymentButton}>
+              <GradientButton style={styles.confirmPaymentButton}>
                 <Text style={styles.confirmPaymentButtonText}>Confirm Payment</Text>
-              </TouchableOpacity>
+              </GradientButton>
             </ScrollView>
           </View>
         </View>
@@ -409,7 +435,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   facilityName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
     flex: 1,
@@ -421,7 +447,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   insuranceBadge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#F4F4F4',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -433,21 +459,21 @@ const styles = StyleSheet.create({
   lastVisitText: {
     fontSize: 14,
     color: '#6b7280',
+    fontWeight: '600',
   },
   scheduleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0ea5e9',
     paddingVertical: 12,
     borderRadius: 20,
     marginTop: 16,
   },
   scheduleButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '700',
   },
   facilitySelectorContainer: {
     marginTop: 12,
@@ -479,14 +505,21 @@ const styles = StyleSheet.create({
   },
   facilitySelectorLastVisit: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#1f2937',
     marginTop: 2,
   },
   scheduleScroll: {
     marginTop: 12,
   },
+  scheduleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 12,
+  },
   scheduleCard: {
-    width: 160,
+    width: 180,
+    height: 255,
     padding: 12,
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -494,54 +527,83 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginRight: 12,
   },
-  scheduleMonth: {
+  scheduleCardGrid: {
+    width: '48%',
+    padding: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+    borderRadius: 12,
+  },
+  scheduleTopRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  scheduleCalendarIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginTop: 16,
+  },
+  scheduleDateContainer: {
+    alignItems: 'flex-end',
   },
   scheduleMonthText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#0ea5e9',
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#66BAFF',
+    marginBottom: -8,
   },
   scheduleDate: {
-    fontSize: 36,
+    fontSize: 48,
     fontWeight: 'bold',
-    color: '#0ea5e9',
-    marginTop: 4,
+    color: '#66BAFF',
+    lineHeight: 52,
   },
   statusBadge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginTop: 8,
+    marginTop: 16,
+    marginBottom: -8,
   },
   scheduledBadge: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#66BAFF',
   },
   doneBadge: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#6FE2B2',
+  },
+  cancelledBadge: {
+    backgroundColor: '#E26F6F',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '600',
   },
   scheduledText: {
-    color: '#0284c7',
+    color: '#fff',
   },
   doneText: {
-    color: '#16a34a',
+    color: '#fff',
+  },
+  cancelledText: {
+    color: '#fff',
   },
   scheduleDetails: {
-    marginTop: 8,
+    marginTop: 16,
   },
   scheduleProcedure: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#0ea5e9',
   },
   scheduleDoctor: {
     fontSize: 12,
+    fontWeight: '500',
     color: '#6b7280',
     marginTop: 4,
   },
@@ -566,34 +628,35 @@ const styles = StyleSheet.create({
   activityIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   paymentIcon: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#E26F6F',
   },
   cashbackIcon: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#6FE2B2',
   },
   activityDescription: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3A4D51',
   },
   activityTime: {
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '500',
     color: '#6b7280',
   },
   activityAmount: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '700',
   },
   negativeAmount: {
-    color: '#ef4444',
+    color: '#E26F6F',
   },
   positiveAmount: {
-    color: '#22c55e',
+    color: '#6FE2B2',
   },
   modalOverlay: {
     flex: 1,
@@ -682,7 +745,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0ea5e9',
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 16,
@@ -751,7 +813,6 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   confirmPaymentButton: {
-    backgroundColor: '#0ea5e9',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',

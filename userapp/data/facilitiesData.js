@@ -32,6 +32,15 @@ export const schedulesData = [
     doctor: "Dr. Jasper King Gueco",
     room: "Room 101",
   },
+  {
+    id: "3",
+    date: "07",
+    month: "Nov",
+    status: "Cancelled",
+    procedure: "General Check-up",
+    doctor: "Dr. Jasper King Gueco",
+    room: "Room 101",
+  },
 ];
 
 export const activitiesData = [
