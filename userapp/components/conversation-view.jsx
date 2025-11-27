@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Send, Phone, Video } from 'lucide-react-native';
 
 export function ConversationView({ name, avatar, onBack }) {
@@ -38,7 +39,10 @@ export function ConversationView({ name, avatar, onBack }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.header}>
+      <LinearGradient
+        colors={['#66BAFF', '#83BFF0']}
+        style={styles.header}
+      >
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <ArrowLeft size={20} color="#fff" />
         </TouchableOpacity>
@@ -57,7 +61,7 @@ export function ConversationView({ name, avatar, onBack }) {
             <Video size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView style={styles.messagesContainer}>
         {messages.map((msg) => (
@@ -68,29 +72,28 @@ export function ConversationView({ name, avatar, onBack }) {
               msg.type === 'sent' ? styles.sentWrapper : styles.receivedWrapper,
             ]}
           >
-            <View
-              style={[
-                styles.messageBubble,
-                msg.type === 'sent' ? styles.sentBubble : styles.receivedBubble,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.messageText,
-                  msg.type === 'sent' ? styles.sentText : styles.receivedText,
-                ]}
+            {msg.type === 'sent' ? (
+              <LinearGradient
+                colors={['#66BAFF', '#83BFF0']}
+                style={[styles.messageBubble, styles.sentBubble]}
               >
-                {msg.content}
-              </Text>
-              <Text
-                style={[
-                  styles.messageTime,
-                  msg.type === 'sent' ? styles.sentTime : styles.receivedTime,
-                ]}
-              >
-                {msg.time}
-              </Text>
-            </View>
+                <Text style={[styles.messageText, styles.sentText]}>
+                  {msg.content}
+                </Text>
+                <Text style={[styles.messageTime, styles.sentTime]}>
+                  {msg.time}
+                </Text>
+              </LinearGradient>
+            ) : (
+              <View style={[styles.messageBubble, styles.receivedBubble]}>
+                <Text style={[styles.messageText, styles.receivedText]}>
+                  {msg.content}
+                </Text>
+                <Text style={[styles.messageTime, styles.receivedTime]}>
+                  {msg.time}
+                </Text>
+              </View>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -103,8 +106,13 @@ export function ConversationView({ name, avatar, onBack }) {
           onChangeText={setMessage}
           multiline
         />
-        <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
-          <Send size={20} color="#fff" />
+        <TouchableOpacity onPress={handleSend}>
+          <LinearGradient
+            colors={['#66BAFF', '#83BFF0']}
+            style={styles.sendButton}
+          >
+            <Send size={20} color="#fff" />
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -117,7 +125,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   header: {
-    backgroundColor: '#0ea5e9',
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 48,
@@ -136,14 +143,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#38bdf8',
+    backgroundColor: '#e0f2fe',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#38bdf8',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: '#fff',
+    color: '#0ea5e9',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -190,7 +197,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   sentBubble: {
-    backgroundColor: '#0ea5e9',
     borderBottomRightRadius: 4,
   },
   receivedBubble: {
@@ -243,7 +249,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0ea5e9',
     justifyContent: 'center',
     alignItems: 'center',
   },
