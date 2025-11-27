@@ -4,6 +4,7 @@ import { ArrowLeft, Send, MapPin, Paperclip, Mic, AlertCircle } from 'lucide-rea
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker } from 'react-native-maps';
 import ChatbotAPI from '../services/chatbotApi'; 
+import BrowseAPI from '../services/browseApi'; // Import BrowseAPI
 
 export function SintomasAI({ onBack, isModal = false }) {
   const [messages, setMessages] = useState([]);
@@ -11,15 +12,66 @@ export function SintomasAI({ onBack, isModal = false }) {
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef(null);
+  const facilitiesRef = useRef([]); // Store facilities to avoid re-fetching
 
-  // Initialize Session
+  // Helper: Find nearest facility based on AI recommendation
+  const findRecommendedFacility = (metadata) => {
+    if (!facilitiesRef.current || facilitiesRef.current.length === 0) return null;
+
+    const urgency = metadata?.urgency_level;
+    const specialist = metadata?.recommended_specialist || "";
+    
+    // 1. Determine target keywords
+    let targetKeywords = [];
+    if (urgency === 'EMERGENCY' || urgency === 'HIGH') {
+      targetKeywords = ['emergency', 'er', 'trauma'];
+    } else if (specialist) {
+      // Simple normalization: "Cardiologist" -> "cardio"
+      const root = specialist.toLowerCase().replace('specialist', '').replace('doctor', '').trim().substring(0, 5);
+      targetKeywords = [root];
+    }
+
+    // 2. Filter facilities (facilitiesRef is already sorted by distance from BrowseAPI)
+    let match = facilitiesRef.current.find(f => {
+      if (!f.services) return false;
+      return f.services.some(s => 
+        targetKeywords.some(k => s.toLowerCase().includes(k))
+      );
+    });
+
+    // 3. Fallback to General Medicine if no specific match found
+    if (!match) {
+      match = facilitiesRef.current.find(f => {
+        if (!f.services) return false;
+        return f.services.some(s => 
+          s.toLowerCase().includes('general') || s.toLowerCase().includes('family') || s.toLowerCase().includes('primary')
+        );
+      });
+    }
+
+    // 4. Ultimate fallback: Nearest facility (first in list)
+    if (!match && facilitiesRef.current.length > 0) {
+      match = facilitiesRef.current[0];
+    }
+
+    return match;
+  };
+
+  // Initialize Session & Load Facilities
   useEffect(() => {
     const initChat = async () => {
       try {
         setIsLoading(true);
+        
+        // 1. Fetch Facilities first (needed for history processing)
+        const facilitiesData = await BrowseAPI.getSeekCareData();
+        facilitiesRef.current = facilitiesData.facilities;
+
+        // 2. Start/Get Session
         const session = await ChatbotAPI.startOrGetSession();
         setSessionId(session.id);
 
+        // 3. Get History
         const history = await ChatbotAPI.getSessionMessages(session.id);
         
         if (history.length === 0) {
@@ -29,12 +81,21 @@ export function SintomasAI({ onBack, isModal = false }) {
             content: "Hello! I'm Gabay, your AI health assistant. How are you feeling today?",
           }]);
         } else {
-          setMessages(history.map(msg => ({
-            id: msg.id,
-            type: msg.sender_role === 'user' ? 'user' : 'ai',
-            content: msg.content,
-            metadata: msg.ai_metadata 
-          })));
+          // Process history to attach facility info
+          const processedHistory = history.map(msg => {
+            let facility = null;
+            if (msg.sender_role !== 'user' && msg.ai_metadata) {
+              facility = findRecommendedFacility(msg.ai_metadata);
+            }
+            return {
+              id: msg.id,
+              type: msg.sender_role === 'user' ? 'user' : 'ai',
+              content: msg.content,
+              metadata: msg.ai_metadata,
+              facility: facility
+            };
+          });
+          setMessages(processedHistory);
         }
       } catch (error) {
         console.error("Failed to init chat:", error);
@@ -70,14 +131,17 @@ export function SintomasAI({ onBack, isModal = false }) {
     setIsLoading(true);
 
     try { 
-      
       const aiMsgData = await ChatbotAPI.sendMessage(sessionId, userText);
+
+      // Resolve facility for the new message
+      const recommendedFacility = findRecommendedFacility(aiMsgData.ai_metadata);
 
       const aiMsg = {
         id: aiMsgData.id,
         type: "ai",
         content: aiMsgData.content,
-        metadata: aiMsgData.ai_metadata
+        metadata: aiMsgData.ai_metadata,
+        facility: recommendedFacility
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -129,8 +193,19 @@ export function SintomasAI({ onBack, isModal = false }) {
         {messages.map((message) => {
           const urgency = message.metadata?.urgency_level;
           const specialist = message.metadata?.recommended_specialist;
-          const showMap = urgency === 'EMERGENCY' || urgency === 'HIGH';
+          
+          // Show map if urgency is significant OR if a specialist is explicitly recommended 
+          // (e.g. "Dentist", "General Practitioner") even if urgency is LOW.
+          // This ensures "Where is the nearest dental?" shows a map.
+          const showMap = message.facility && (
+            urgency === 'EMERGENCY' || 
+            urgency === 'HIGH' || 
+            urgency === 'MEDIUM' || 
+            (specialist && specialist !== 'None' && specialist !== 'Self-care')
+          );
+
           const urgencyStyle = getUrgencyStyles(urgency);
+          const facility = message.facility;
 
           return (
             <View 
@@ -142,7 +217,7 @@ export function SintomasAI({ onBack, isModal = false }) {
             >
               {message.type === "ai" ? (
                 <View style={styles.aiMessageContainer}>
-                  {/* NEW: Metadata Header */}
+                  {/* Metadata Header */}
                   {urgency && (
                     <View style={styles.metaHeader}>
                       <View style={[styles.urgencyBadge, { backgroundColor: urgencyStyle.bg }]}>
@@ -161,14 +236,14 @@ export function SintomasAI({ onBack, isModal = false }) {
 
                   <Text style={styles.aiMessageText}>{message.content}</Text>
                   
-                  {showMap && (
+                  {showMap && facility && (
                     <View style={styles.mapContainer}>
                       <View style={styles.mapView}>
                         <MapView
                           style={styles.map}
                           initialRegion={{
-                            latitude: 14.5764,
-                            longitude: 120.9883,
+                            latitude: facility.latitude || 14.5977,
+                            longitude: facility.longitude || 121.0112,
                             latitudeDelta: 0.01,
                             longitudeDelta: 0.01,
                           }}
@@ -179,19 +254,19 @@ export function SintomasAI({ onBack, isModal = false }) {
                         >
                           <Marker
                             coordinate={{
-                              latitude: 14.5764,
-                              longitude: 120.9883,
+                              latitude: facility.latitude || 14.5977,
+                              longitude: facility.longitude || 121.0112,
                             }}
-                            title="Philippine General Hospital"
-                            description="(Manila) ~2.1 km away"
+                            title={facility.name}
+                            description={facility.address}
                           />
                         </MapView>
                         <TouchableOpacity 
                           style={styles.mapButton}
                           onPress={() => {
                             const url = Platform.select({
-                              ios: 'maps:0,0?q=Philippine+General+Hospital@14.5764,120.9883',
-                              android: 'geo:0,0?q=14.5764,120.9883(Philippine+General+Hospital)',
+                              ios: `maps:0,0?q=${facility.name}@${facility.latitude},${facility.longitude}`,
+                              android: `geo:0,0?q=${facility.latitude},${facility.longitude}(${facility.name})`,
                             });
                             Linking.openURL(url);
                           }}
@@ -203,8 +278,10 @@ export function SintomasAI({ onBack, isModal = false }) {
                       <View style={styles.locationInfo}>
                         <MapPin size={16} color="#0ea5e9" />
                         <View style={styles.locationText}>
-                          <Text style={styles.locationName}>Philippine General Hospital</Text>
-                          <Text style={styles.locationDistance}>Recommended for Emergency</Text>
+                          <Text style={styles.locationName}>{facility.name}</Text>
+                          <Text style={styles.locationDistance}>
+                            {facility.distance} away • {urgency === 'EMERGENCY' ? 'Nearest ER' : 'Recommended'}
+                          </Text>
                         </View>
                       </View>
                     </View>

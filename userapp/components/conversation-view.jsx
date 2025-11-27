@@ -1,36 +1,59 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { ArrowLeft, Send, Phone, Video } from 'lucide-react-native';
 import { GradientButton, GradientView } from './ui/gradient-button';
+import MessagesAPI from '../services/messagesApi';
 
-export function ConversationView({ name, avatar, onBack }) {
+export function ConversationView({ conversationId, name, avatar, onBack }) {
   const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const scrollViewRef = useRef();
 
-  const messages = [
-    {
-      id: "1",
-      type: "received",
-      content: "Good day! This is a reminder about your upcoming appointment.",
-      time: "9:00 AM",
-    },
-    {
-      id: "2",
-      type: "sent",
-      content: "Thank you for the reminder. I will be there on time.",
-      time: "9:15 AM",
-    },
-    {
-      id: "3",
-      type: "received",
-      content: "Your appointment has been confirmed for Nov 27 at 10:30 AM. Please bring your ID and insurance card.",
-      time: "10:30 AM",
-    },
-  ];
+  useEffect(() => {
+    loadMessages();
+    // Mark as read when opening
+    MessagesAPI.markAsRead(conversationId);
 
-  const handleSend = () => {
-    if (message.trim()) {
-      console.log('Sending message:', message);
-      setMessage('');
+    // Optional: Poll for new messages every 5 seconds
+    const interval = setInterval(loadMessages, 5000);
+    return () => clearInterval(interval);
+  }, [conversationId]);
+
+  const loadMessages = async () => {
+    try {
+      const data = await MessagesAPI.getMessages(conversationId);
+      setMessages(data);
+    } catch (error) {
+      console.error("Error loading messages:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() || sending) return;
+
+    const textToSend = message.trim();
+    setMessage(''); // Clear input immediately for better UX
+    setSending(true);
+
+    try {
+      const result = await MessagesAPI.sendMessage(conversationId, textToSend);
+      if (result.success) {
+        // Add message locally or reload
+        await loadMessages();
+      } else {
+        console.error("Failed to send:", result.error);
+        // Ideally show an error toast here, and maybe restore the text to input
+        setMessage(textToSend); 
+      }
+    } catch (error) {
+      console.error("Send error:", error);
+      setMessage(textToSend);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -63,40 +86,50 @@ export function ConversationView({ name, avatar, onBack }) {
         </View>
       </GradientView>
 
-      <ScrollView style={styles.messagesContainer}>
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageWrapper,
-              msg.type === 'sent' ? styles.sentWrapper : styles.receivedWrapper,
-            ]}
-          >
-            {msg.type === 'sent' ? (
-              <GradientView
-                colors={['#66BAFF', '#83BFF0']}
-                style={[styles.messageBubble, styles.sentBubble]}
-              >
-                <Text style={[styles.messageText, styles.sentText]}>
-                  {msg.content}
-                </Text>
-                <Text style={[styles.messageTime, styles.sentTime]}>
-                  {msg.time}
-                </Text>
-              </GradientView>
-            ) : (
-              <View style={[styles.messageBubble, styles.receivedBubble]}>
-                <Text style={[styles.messageText, styles.receivedText]}>
-                  {msg.content}
-                </Text>
-                <Text style={[styles.messageTime, styles.receivedTime]}>
-                  {msg.time}
-                </Text>
-              </View>
-            )}
-          </View>
-        ))}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#0ea5e9" />
+        </View>
+      ) : (
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.map((msg) => (
+            <View
+              key={msg.id}
+              style={[
+                styles.messageWrapper,
+                msg.sender === 'patient' ? styles.sentWrapper : styles.receivedWrapper,
+              ]}
+            >
+              {msg.sender === 'patient' ? (
+                <GradientView
+                  colors={['#66BAFF', '#83BFF0']}
+                  style={[styles.messageBubble, styles.sentBubble]}
+                >
+                  <Text style={[styles.messageText, styles.sentText]}>
+                    {msg.text}
+                  </Text>
+                  <Text style={[styles.messageTime, styles.sentTime]}>
+                    {msg.timestamp}
+                  </Text>
+                </GradientView>
+              ) : (
+                <View style={[styles.messageBubble, styles.receivedBubble]}>
+                  <Text style={[styles.messageText, styles.receivedText]}>
+                    {msg.text}
+                  </Text>
+                  <Text style={[styles.messageTime, styles.receivedTime]}>
+                    {msg.timestamp}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      )}
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -110,8 +143,13 @@ export function ConversationView({ name, avatar, onBack }) {
           onPress={handleSend}
           colors={['#66BAFF', '#83BFF0']}
           style={styles.sendButton}
+          disabled={sending}
         >
-          <Send size={20} color="#fff" />
+          {sending ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Send size={20} color="#fff" />
+          )}
         </GradientButton>
       </View>
     </KeyboardAvoidingView>
@@ -122,6 +160,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     paddingHorizontal: 16,

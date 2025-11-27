@@ -8,6 +8,7 @@ import BrowseAPI from '../services/browseApi';
 
 export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
+  const [bookingFacility, setBookingFacility] = useState(null); // ADD THIS: Separate state for booking
   const [showAppointmentBooking, setShowAppointmentBooking] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [showAllHospitals, setShowAllHospitals] = useState(false);
@@ -306,8 +307,9 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
               <TouchableOpacity
                 style={styles.bookButton}
                 onPress={() => {
-                  setSelectedFacility(null);
-                  setShowAppointmentBooking(true);
+                  setBookingFacility(selectedFacility); // Save the ID before closing
+                  setSelectedFacility(null); // Close details modal
+                  setShowAppointmentBooking(true); // Open booking modal
                 }}
               >
                 <Calendar size={16} color="#fff" />
@@ -327,8 +329,10 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
         onClose={() => {
           setShowAppointmentBooking(false);
           setSelectedService(null);
+          setBookingFacility(null); // Clear on close
         }}
         initialService={selectedService}
+        facilityId={bookingFacility} // USE THIS instead of selectedFacility
       />
     </View>
   );

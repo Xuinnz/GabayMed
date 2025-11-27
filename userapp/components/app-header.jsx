@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { MessageCircle, Bell } from 'lucide-react-native';
+import ProfileAPI from '../services/profileApi'; // Import ProfileAPI
 
 export function AppHeader({ onOpenMessages, onOpenNotifications }) {
   const [userData, setUserData] = useState({
-    firstName: 'Red',
-    lastName: 'Gabriel',
-    initials: 'RG',
+    firstName: '',
+    lastName: '',
+    initials: '',
     avatar: null
   });
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -21,19 +22,33 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
 
   const fetchUserData = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('YOUR_API_ENDPOINT/user/profile');
-      // const data = await response.json();
+      const profile = await ProfileAPI.getProfile();
       
-      // Simulated data for now
-      setTimeout(() => {
+      if (profile) {
+        // Handle full_name splitting
+        const fullName = profile.name || 'Guest';
+        const nameParts = fullName.split(' ');
+        const first = nameParts[0] || 'Guest';
+        const last = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        
+        // Generate initials safely
+        const initials = `${first.charAt(0) || ''}${last.charAt(0) || ''}`.toUpperCase() || 'G';
+
         setUserData({
-          firstName: 'Red',
-          lastName: 'Gabriel',
-          initials: 'RG',
-          avatar: null // Set to image URL if available
+          firstName: first,
+          lastName: last,
+          initials: initials,
+          avatar: profile.avatar // Ensure this matches your API response key
         });
-      }, 100);
+      } else {
+        // Fallback state
+        setUserData({
+          firstName: 'Guest',
+          lastName: '',
+          initials: 'G',
+          avatar: null
+        });
+      }
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
@@ -48,7 +63,7 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
       // Simulated data for now
       setTimeout(() => {
         setUnreadMessages(2);
-        setUnreadNotifications(3);
+        setUnreadNotifications(0);
       }, 100);
     } catch (error) {
       console.error('Error fetching unread counts:', error);
@@ -66,11 +81,6 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
     }
   };
 
-  const getInitials = () => {
-    if (userData.initials) return userData.initials;
-    return `${userData.firstName?.charAt(0) || ''}${userData.lastName?.charAt(0) || ''}`;
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.leftSection}>
@@ -79,7 +89,7 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
             <Image source={{ uri: userData.avatar }} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials()}</Text>
+              <Text style={styles.avatarText}>{userData.initials}</Text>
             </View>
           )}
         </View>

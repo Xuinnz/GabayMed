@@ -45,7 +45,8 @@ const ProfileAPI = {
         address: profile.address || 'Not set',
         bloodType: profile.blood_type || 'Not set',
         allergies: profile.allergies || 'None',
-        medicalHistory: profile.medical_history ? profile.medical_history.split(',') : [] 
+        medicalHistory: profile.medical_history ? profile.medical_history.split(',') : [] ,
+        avatar: profile.avatar_url
       };
 
     } catch (error) {

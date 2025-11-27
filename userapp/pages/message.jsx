@@ -1,47 +1,56 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import { ArrowLeft, Search } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ConversationView } from '../components/conversation-view';
+import MessagesAPI from '../services/messagesApi';
 
 export function MessagesPage({ onBack }) {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [searchText, setSearchText] = useState('');
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const conversations = [
-    {
-      id: "1",
-      name: "Philippine General Hospital",
-      lastMessage: "Your appointment has been confirmed for Nov 27.",
-      time: "10:30 AM",
-      unread: 2,
-      avatar: "/hospital-icon.png",
-    },
-    {
-      id: "2",
-      name: "UERM Medical Center",
-      lastMessage: "Thank you for visiting us. Please complete the survey.",
-      time: "Yesterday",
-      unread: 0,
-      avatar: "/uerm-hospital-icon.jpg",
-    },
-    {
-      id: "3",
-      name: "Dr. Jasper King Gueco",
-      lastMessage: "Your lab results are ready. Please schedule a follow-up.",
-      time: "Nov 20",
-      unread: 1,
-      avatar: "/doctor-avatar-male.jpg",
-    },
-  ];
+  const fetchConversations = async () => {
+    try {
+      const data = await MessagesAPI.getConversations();
+      setConversations(data);
+    } catch (error) {
+      console.error("Failed to load conversations", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // Refresh when pulling down
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchConversations();
+  }, []);
+
+  // Filter based on search
+  const filteredConversations = conversations.filter(c => 
+    c.name.toLowerCase().includes(searchText.toLowerCase()) ||
+    c.lastMessage.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   if (selectedConversation) {
     const conv = conversations.find((c) => c.id === selectedConversation);
     return (
       <ConversationView
+        conversationId={selectedConversation} // Pass the patient_id as conversationId
         name={conv?.name || ""}
         avatar={conv?.avatar || ""}
-        onBack={() => setSelectedConversation(null)}
+        onBack={() => {
+          setSelectedConversation(null);
+          fetchConversations(); // Refresh list on back to update unread counts/last message
+        }}
       />
     );
   }
@@ -71,33 +80,60 @@ export function MessagesPage({ onBack }) {
         </View>
       </View>
 
-      <ScrollView style={styles.conversationsList}>
-        {conversations.map((conv) => (
-          <TouchableOpacity
-            key={conv.id}
-            onPress={() => setSelectedConversation(conv.id)}
-            style={styles.conversationItem}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{conv.name.charAt(0)}</Text>
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#0ea5e9" />
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.conversationsList}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {filteredConversations.length === 0 ? (
+            <View style={styles.centerContainer}>
+              <Text style={styles.emptyText}>No messages yet.</Text>
             </View>
-            <View style={styles.conversationContent}>
-              <View style={styles.conversationHeader}>
-                <Text style={styles.conversationName}>{conv.name}</Text>
-                <Text style={styles.conversationTime}>{conv.time}</Text>
-              </View>
-              <Text style={styles.conversationMessage} numberOfLines={1}>
-                {conv.lastMessage}
-              </Text>
-            </View>
-            {conv.unread > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>{conv.unread}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+          ) : (
+            filteredConversations.map((conv) => (
+              <TouchableOpacity
+                key={conv.id}
+                onPress={() => setSelectedConversation(conv.id)}
+                style={styles.conversationItem}
+              >
+                <View style={styles.avatar}>
+                  {conv.avatar ? (
+                    <Image source={{ uri: conv.avatar }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarText}>{conv.initials}</Text>
+                  )}
+                </View>
+                <View style={styles.conversationContent}>
+                  <View style={styles.conversationHeader}>
+                    <Text style={styles.conversationName}>{conv.name}</Text>
+                    <Text style={styles.conversationTime}>{conv.timestamp}</Text>
+                  </View>
+                  <Text 
+                    style={[
+                      styles.conversationMessage, 
+                      conv.unread && styles.conversationMessageUnread
+                    ]} 
+                    numberOfLines={1}
+                  >
+                    {conv.unread ? '• ' : ''}{conv.lastMessage}
+                  </Text>
+                </View>
+                {conv.unread && (
+                  <View style={styles.unreadBadge}>
+                    <View style={styles.unreadDot} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -106,6 +142,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 40,
   },
   header: {
     paddingHorizontal: 16,
@@ -165,6 +207,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0f2fe',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     color: '#0ea5e9',
@@ -193,17 +240,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
+  conversationMessageUnread: {
+    color: '#1f2937',
+    fontWeight: '600',
+  },
   unreadBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#0ea5e9',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  unreadText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: 'bold',
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0ea5e9',
   },
+  emptyText: {
+    color: '#9ca3af',
+    fontSize: 16,
+  }
 });
