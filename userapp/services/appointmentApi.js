@@ -95,12 +95,27 @@ const AppointmentAPI = {
       if (existingPatient) {
         patientId = existingPatient.patient_id;
       } else {
+        // 2a. Fetch Profile Data to populate Patient record
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name, date_of_birth, gender')
+          .eq('id', userId)
+          .single();
+
+        if (profileError) {
+           console.error("Error fetching profile for new patient:", profileError);
+           throw new Error("Could not retrieve user profile to create patient record.");
+        }
+
         // Create new patient record linking profile and facility
         const { data: newPatient, error: createError } = await supabase
           .from('patients')
           .insert([{
             user_id: userId,
-            facility_id: facilityId
+            facility_id: facilityId,
+            full_name: profile.full_name || 'Guest User', // Fallback to satisfy NOT NULL
+            date_of_birth: profile.date_of_birth,
+            gender: profile.gender
           }])
           .select('patient_id')
           .single();

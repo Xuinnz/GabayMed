@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import Session from './session';
-import ProfileAPI from './profileApi'; // Import ProfileAPI
+import ProfileAPI from './profileApi';
+import BrowseAPI from './browseApi'; // Import BrowseAPI
 
 // --- CONFIGURATION ---
 // 1. If using Android Emulator: Use 'http://10.0.2.2:3000/api/triage'
@@ -68,7 +69,12 @@ const ChatbotAPI = {
       // 1. Fetch User Profile Data
       const userProfile = await ProfileAPI.getProfile();
 
-      // 2. Save User Message
+      // 2. Fetch Available Services (Specialists)
+      // We use BrowseAPI to get the distinct list of services offered by facilities
+      const { services } = await BrowseAPI.getSeekCareData();
+      const availableSpecialists = services.join(', ');
+
+      // 3. Save User Message
       const { error: userMsgError } = await supabase
         .from('triage_messages')
         .insert({
@@ -79,9 +85,8 @@ const ChatbotAPI = {
 
       if (userMsgError) throw userMsgError;
 
-      // 3. Call AI Endpoint with Timeout Handling
+      // 4. Call AI Endpoint with Timeout Handling
       const controller = new AbortController();
-      // Increase timeout to 60 seconds for AI processing
       const timeoutId = setTimeout(() => controller.abort(), 60000); 
 
       console.log(`Sending request to: ${API_URL}`);
@@ -93,8 +98,9 @@ const ChatbotAPI = {
           body: JSON.stringify({
             user_complaint: userComplaint,
             age: userProfile.age,
-            medical_history: userProfile.medicalHistory.join(', '), // Convert array to string
-            allergies: userProfile.allergies
+            medical_history: userProfile.medicalHistory.join(', '),
+            allergies: userProfile.allergies,
+            available_specialists: availableSpecialists // Pass the list here
           }),
           signal: controller.signal
         });
@@ -107,7 +113,7 @@ const ChatbotAPI = {
 
         const aiResponse = await response.json();
 
-        // 4. Save AI Response
+        // 5. Save AI Response
         const { data: aiMessage, error: aiMsgError } = await supabase
           .from('triage_messages')
           .insert({
@@ -121,7 +127,7 @@ const ChatbotAPI = {
 
         if (aiMsgError) throw aiMsgError;
 
-        // 5. Update Session Status
+        // 6. Update Session Status
         await supabase
           .from('triage_sessions')
           .update({

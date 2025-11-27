@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 
 // Hardcoded ID for development/testing (This is now a Profile/User ID)
-const FALLBACK_USER_ID = '70e59689-c5ae-4b4b-a690-d3742d1a9432'; 
+const FALLBACK_USER_ID = '10fd052c-2166-40d1-87c8-914f3aa4967f'; 
 
 const Session = {
   _cachedId: null,

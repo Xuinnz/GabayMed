@@ -62,7 +62,7 @@ export function AppHeader({ onOpenMessages, onOpenNotifications }) {
       
       // Simulated data for now
       setTimeout(() => {
-        setUnreadMessages(2);
+        setUnreadMessages(0);
         setUnreadNotifications(0);
       }, 100);
     } catch (error) {

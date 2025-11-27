@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Session } from './session'; // Import Session service
 
 // Helper to get env vars
 const getEnv = (key) => {
@@ -15,30 +16,32 @@ const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
 const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY');
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-/*
-  REQUIRED SUPABASE SCHEMA:
-
-  create table messages (
-    id uuid default gen_random_uuid() primary key,
-    patient_id uuid references patients(patient_id) not null,
-    sender_type text check (sender_type in ('patient', 'staff')) not null,
-    content text not null,
-    created_at timestamptz default now(),
-    is_read boolean default false
-  );
-
-  -- Optional: Index for performance
-  create index idx_messages_patient_id on messages(patient_id);
-  create index idx_messages_created_at on messages(created_at);
-*/
-
 export const messagesAPI = {
   
   // 1. Get Conversations (List of patients with their last message)
+  // UPDATED: Uses Session to get facilityId automatically
   async getConversations() {
     try {
-      // Fetch all messages ordered by newest first
-      // In a real production app, you'd use a View or RPC for this to avoid fetching all messages
+      const facilityId = Session.getFacilityId();
+      
+      if (!facilityId) {
+        console.warn("getConversations: No facilityId found in Session");
+        return [];
+      }
+
+      // Step 1: Get all patients linked to this facility
+      const { data: facilityPatients, error: patientsError } = await supabase
+        .from('patients')
+        .select('patient_id')
+        .eq('facility_id', facilityId);
+
+      if (patientsError) throw patientsError;
+
+      const validPatientIds = facilityPatients.map(p => p.patient_id);
+
+      if (validPatientIds.length === 0) return [];
+
+      // Step 2: Fetch messages ONLY for these patients
       const { data: messages, error } = await supabase
         .from('messages')
         .select(`
@@ -49,33 +52,34 @@ export const messagesAPI = {
           is_read,
           sender_type
         `)
+        .in('patient_id', validPatientIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       // Group by patient_id to get the latest message for each conversation
       const conversationMap = new Map();
-      const patientIds = new Set();
+      const activePatientIds = new Set();
 
       messages.forEach(msg => {
         if (!conversationMap.has(msg.patient_id)) {
           conversationMap.set(msg.patient_id, msg);
-          patientIds.add(msg.patient_id);
+          activePatientIds.add(msg.patient_id);
         }
       });
 
-      if (patientIds.size === 0) return [];
+      if (activePatientIds.size === 0) return [];
 
-      // Fetch details for these patients
-      const { data: patients, error: patientError } = await supabase
+      // Fetch details for these active patients
+      const { data: patients, error: detailsError } = await supabase
         .from('patients')
         .select(`
           patient_id,
           profiles ( full_name, avatar_url )
         `)
-        .in('patient_id', Array.from(patientIds));
+        .in('patient_id', Array.from(activePatientIds));
 
-      if (patientError) throw patientError;
+      if (detailsError) throw detailsError;
 
       // Combine data
       const conversations = patients.map(p => {

@@ -23,7 +23,7 @@ const EMERGENCY_KEYWORDS = /chest pain|trouble breathing|severe bleeding|stroke|
 
 const handler = async (request, response) => {
     // 3. Validate Input Variables
-    const { age, medical_history, allergies, user_complaint } = request.body;
+    const { age, medical_history, allergies, user_complaint, available_specialists } = request.body;
 
     if (!user_complaint) {
         return response.status(400).json({ error: "Symptoms are required" });
@@ -52,14 +52,18 @@ const handler = async (request, response) => {
         SAFETY PROTOCOL:
         1. NEVER provide a definitive diagnosis (e.g., "You have pneumonia"). Use "Symptoms are consistent with...".
         2. IF symptoms suggest life-threat (chest pain, stroke, severe bleeding), urgency MUST be "EMERGENCY".
-        3. Map symptoms to a specific medical specialization (e.g., Nephrology, Cardiology) for routing.
+        3. Map symptoms to a specific medical specialization for routing.
+
+        CONSTRAINT - AVAILABLE SPECIALISTS:
+        You must ONLY recommend a specialist from the following list: [${available_specialists || "General Practitioner"}].
+        If the exact specialist is not in the list, choose "General Check-up" or the closest match available in the list.
 
         OUTPUT FORMAT:
         Respond ONLY with a valid JSON object matching this structure:
         {
             "urgency_level": "LOW" | "MEDIUM" | "HIGH" | "EMERGENCY",
             "primary_suspect_condition": "Brief description (NOT diagnosis)",
-            "recommended_specialist": "Specialty Name",
+            "recommended_specialist": "Must be one from the provided list",
             "reasoning": "Short explanation",
             "triage_questions": ["Question 1", "Question 2"],
             "user_friendly_response": "Clear, compassionate message. End with 'This is an AI assessment, not a medical diagnosis.'"
