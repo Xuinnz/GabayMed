@@ -1,63 +1,59 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image } from 'react-native';
-import { Search, Star, X, MessageCircle, Calendar, FileText, DollarSign, MapPin } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image, ActivityIndicator, Alert } from 'react-native';
+import { Search, Star, X, MessageCircle, Calendar, FileText, DollarSign, MapPin, Stethoscope } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
 import { MapViewSection } from '../components/map-view-section';
-import { BrowseServices } from '../components/browse-services';
 import { AppointmentBooking } from '../components/appointment';
+import BrowseAPI from '../services/browseApi';
 
 export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showAppointmentBooking, setShowAppointmentBooking] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [showAllHospitals, setShowAllHospitals] = useState(false);
+  const [showAllServices, setShowAllServices] = useState(false); // Controls Modal now
+ 
+  // Data State
+  const [loading, setLoading] = useState(true);
+  const [allFacilities, setAllFacilities] = useState([]);
+  const [displayedFacilities, setDisplayedFacilities] = useState([]);
+  const [availableServices, setAvailableServices] = useState([]);
 
-  const hospitals = [
-    {
-      id: "1",
-      name: "UERM Medical Center",
-      address: "64 Aurora Blvd",
-      rating: 4.8,
-      isOpen: true,
-      isGabay: true,
-      image: "/uerm-medical-center-hospital-building.jpg",
-      distance: "1.2 km",
-      openHours: "Open 24 hours",
-    },
-    {
-      id: "2",
-      name: "Philippine General Hospital",
-      address: "Taft Ave, Manila",
-      rating: 4.6,
-      isOpen: true,
-      isGabay: true,
-      image: "/philippine-general-hospital-building.jpg",
-      distance: "2.1 km",
-      openHours: "Open 24 hours",
-    },
-    {
-      id: "3",
-      name: "Manila Doctors Hospital",
-      address: "667 United Nations Ave",
-      rating: 4.5,
-      isOpen: true,
-      isGabay: false,
-      image: "/manila-doctors-hospital-building.jpg",
-      distance: "3.4 km",
-      openHours: "Open 24 hours",
-    },
-      {
-      id: "4",
-      name: "Manila Doctors Hospital",
-      address: "667 United Nations Ave",
-      rating: 4.5,
-      isOpen: true,
-      isGabay: false,
-      image: "/manila-doctors-hospital-building.jpg",
-      distance: "3.4 km",
-      openHours: "Open 24 hours",
-    },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await BrowseAPI.getSeekCareData();
+    setAllFacilities(data.facilities);
+    setDisplayedFacilities(data.facilities);
+    setAvailableServices(data.services);
+    setLoading(false);
+  };
+
+  const handleServiceSelect = (service) => {
+    setShowAllServices(false); // Close modal if selecting from there
+    if (selectedService === service) {
+      // Deselect
+      setSelectedService(null);
+      setDisplayedFacilities(allFacilities);
+    } else {
+      // Select
+      setSelectedService(service);
+      const filtered = allFacilities.filter(f =>
+        f.services && f.services.includes(service)
+      );
+      setDisplayedFacilities(filtered);
+    }
+  };
+
+  const handleFacilityClick = (facility) => {
+    if (facility.isGabay) {
+      setSelectedFacility(facility.id);
+    }
+    // No else needed as button is disabled
+  };
 
   const gabayPerks = [
     { icon: FileText, label: "View Your Ledger" },
@@ -78,24 +74,37 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Browse by Proximity</Text>
+            <Text style={styles.sectionTitle}>
+              {selectedService ? `Facilities for ${selectedService}` : 'Browse by Proximity'}
+            </Text>
             <TouchableOpacity onPress={() => setShowAllHospitals(!showAllHospitals)}>
               <Text style={styles.seeAllButton}>{showAllHospitals ? 'Show Less' : 'See All'}</Text>
             </TouchableOpacity>
           </View>
 
-          {!showAllHospitals ? (
+          {loading ? (
+            <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 20 }} />
+          ) : !showAllHospitals ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hospitalList}>
-              {hospitals.map((hospital) => (
+              {displayedFacilities.map((hospital) => (
                 <TouchableOpacity
                   key={hospital.id}
-                  style={styles.hospitalCard}
-                  onPress={() => hospital.isGabay && setSelectedFacility(hospital.id)}
+                  style={[styles.hospitalCard, !hospital.isGabay && { opacity: 0.5 }]}
+                  onPress={() => handleFacilityClick(hospital)}
+                  disabled={!hospital.isGabay}
                 >
                 <View style={styles.hospitalImageContainer}>
-                  <View style={styles.hospitalImagePlaceholder}>
-                    <Text style={styles.hospitalImageText}>🏥</Text>
-                  </View>
+                  {hospital.imageUrl ? (
+                    <Image 
+                      source={{ uri: hospital.imageUrl }} 
+                      style={styles.hospitalImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.hospitalImagePlaceholder}>
+                      <Text style={styles.hospitalImageText}>🏥</Text>
+                    </View>
+                  )}
                   <View style={styles.ratingBadge}>
                     <Star size={12} color="#fbbf24" fill="#fbbf24" />
                     <Text style={styles.ratingText}>{hospital.rating}</Text>
@@ -123,16 +132,25 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
           </ScrollView>
           ) : (
             <View style={styles.hospitalGrid}>
-              {hospitals.map((hospital) => (
+              {displayedFacilities.map((hospital) => (
                 <TouchableOpacity
                   key={hospital.id}
-                  style={styles.hospitalCardGrid}
-                  onPress={() => hospital.isGabay && setSelectedFacility(hospital.id)}
+                  style={[styles.hospitalCardGrid, !hospital.isGabay && { opacity: 0.5 }]}
+                  onPress={() => handleFacilityClick(hospital)}
+                  disabled={!hospital.isGabay}
                 >
                   <View style={styles.hospitalImageContainer}>
-                    <View style={styles.hospitalImagePlaceholder}>
-                      <Text style={styles.hospitalImageText}>🏥</Text>
-                    </View>
+                    {hospital.imageUrl ? (
+                      <Image 
+                        source={{ uri: hospital.imageUrl }} 
+                        style={styles.hospitalImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.hospitalImagePlaceholder}>
+                        <Text style={styles.hospitalImageText}>🏥</Text>
+                      </View>
+                    )}
                     <View style={styles.ratingBadge}>
                       <Star size={12} color="#fbbf24" fill="#fbbf24" />
                       <Text style={styles.ratingText}>{hospital.rating}</Text>
@@ -162,14 +180,76 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
         </View>
 
         <View style={[styles.section, styles.lastSection]}>
-          <BrowseServices 
-            showTitle={true} 
-            initialShowAll={true} 
-            onServiceSelect={(service) => {
-              setSelectedService(service);
-              setShowAppointmentBooking(true);
-            }} 
-          />
+          <View style={styles.serviceBrowseHeader}>
+            <Text style={styles.sectionTitle}>Browse Services</Text>
+            <TouchableOpacity onPress={() => setShowAllServices(true)}>
+              <Text style={styles.seeAllButton}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Horizontal Scroll - Always visible on main screen */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceList}>
+            {availableServices.map((service, index) => (
+              <TouchableOpacity
+                key={service}
+                style={[styles.serviceCard, selectedService === service && styles.serviceCardSelected]}
+                onPress={() => handleServiceSelect(service)}
+              >
+                <View style={styles.serviceIconContainer}>
+                  <Stethoscope size={24} color={selectedService === service ? "#fff" : "#0ea5e9"} />
+                </View>
+                <Text style={[styles.serviceLabel, selectedService === service && styles.serviceLabelSelected]}>
+                  {service}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Full Screen Modal for All Services */}
+          <Modal
+            visible={showAllServices}
+            animationType="slide"
+            onRequestClose={() => setShowAllServices(false)}
+          >
+            <View style={styles.fullScreenModalContainer}>
+              <View style={styles.fullScreenModalHeader}>
+                <Text style={styles.fullScreenModalTitle}>All Services</Text>
+                <TouchableOpacity 
+                  onPress={() => setShowAllServices(false)}
+                  style={styles.closeButton}
+                >
+                  <X size={24} color="#1f2937" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView contentContainerStyle={styles.modalScrollContent}>
+                <View style={styles.serviceGrid}>
+                  {availableServices.map((service, index) => (
+                    <TouchableOpacity
+                      key={service}
+                      style={[styles.serviceCardGrid, selectedService === service && styles.serviceCardSelected]}
+                      onPress={() => handleServiceSelect(service)}
+                    >
+                      <View style={styles.serviceIconContainer}>
+                        <Stethoscope size={24} color={selectedService === service ? "#fff" : "#0ea5e9"} />
+                      </View>
+                      <Text style={[styles.serviceLabel, selectedService === service && styles.serviceLabelSelected]}>
+                        {service}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </Modal>
+
+          <View style={styles.serviceDescriptionContainer}>
+            {selectedService && (
+              <Text style={styles.serviceDescription}>
+                You have selected the "{selectedService}" service. Please choose a facility to proceed.
+              </Text>
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -185,8 +265,8 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
                 <View style={styles.modalGabayBadge}>
-                  <Image 
-                    source={require('../assets/logoblue.png')} 
+                  <Image
+                    source={require('../assets/logoblue.png')}
                     style={styles.modalGabayBadgeImage}
                     resizeMode="contain"
                   />
@@ -194,7 +274,7 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
                 <View>
                   <Text style={styles.modalTitle}>GABAY 2.0 Partner</Text>
                   <Text style={styles.modalSubtitle}>
-                    {hospitals.find((h) => h.id === selectedFacility)?.name}
+                    {allFacilities.find((h) => h.id === selectedFacility)?.name}
                   </Text>
                 </View>
               </View>
@@ -242,7 +322,7 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
       </Modal>
 
       {/* Appointment Booking Component */}
-      <AppointmentBooking 
+      <AppointmentBooking
         visible={showAppointmentBooking}
         onClose={() => {
           setShowAppointmentBooking(false);
@@ -272,7 +352,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: '#1f2937',
-    font: 'bold',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -311,10 +390,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#f3f4f6',
+    marginBottom: 12,
   },
   hospitalImageContainer: {
     position: 'relative',
     height: 156,
+  },
+  hospitalImage: {
+    width: '100%',
+    height: '100%',
   },
   hospitalImagePlaceholder: {
     flex: 1,
@@ -499,4 +583,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  serviceBrowseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  serviceList: {
+    marginTop: 12,
+  },
+  serviceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 12,
+  },
+  serviceCard: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#e0f2fe',
+    marginRight: 12,
+    width: 100, // Fixed width for horizontal scroll items
+  },
+  serviceCardGrid: {
+    width: '30%', // 3 columns
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#e0f2fe',
+  },
+  serviceCardSelected: {
+    backgroundColor: '#0ea5e9',
+    borderColor: '#0c4a6e',
+  },
+  serviceIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  serviceLabel: {
+    fontSize: 14,
+    color: '#0ea5e9',
+    fontWeight: '500',
+  },
+  serviceLabelSelected: {
+    color: '#fff',
+  },
+  serviceDescriptionContainer: {
+    marginTop: 16,
+  },
+  serviceDescription: {
+    fontSize: 14,
+    color: '#374151',
+    textAlign: 'center',
+  },
+  // New Styles for Full Screen Modal
+  fullScreenModalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  fullScreenModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    marginTop: 40, // For status bar
+  },
+  fullScreenModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  modalScrollContent: {
+    padding: 16,
+  },
 });
+

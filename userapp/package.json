@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@react-native-masked-view/masked-view": "^0.3.2",
+    "@supabase/supabase-js": "^2.86.0",
     "expo": "~54.0.25",
     "expo-blur": "~15.0.7",
     "expo-linear-gradient": "~15.0.7",
@@ -22,10 +23,12 @@
     "react-native-maps": "1.20.1",
     "react-native-svg": "15.12.1",
     "react-native-svg-transformer": "^1.5.2",
+    "react-native-url-polyfill": "^3.0.0",
     "tailwindcss": "^3.4.18"
   },
   "private": true,
   "devDependencies": {
-    "babel-preset-expo": "^54.0.7"
+    "babel-preset-expo": "^54.0.7",
+    "react-native-dotenv": "^3.4.11"
   }
 }

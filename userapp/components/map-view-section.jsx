@@ -1,31 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Linking, Platform } from 'react-native';
 import { Search, Maximize2, X } from 'lucide-react-native';
 import MapView, { Marker } from 'react-native-maps';
+import MapAPI from '../services/mapApi'; // Import MapAPI
 
 export function MapViewSection() {
+  const USER_LAT = 14.5977;
+  const USER_LONG = 121.0112;
+
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [initialRegion, setInitialRegion] = useState({
+    latitude: USER_LAT, // Start centered on user
+    longitude: USER_LONG,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
+  });
 
-  const hospitalLocation = {
-    latitude: 14.5764,
-    longitude: 120.9883,
-    title: "Philippine General Hospital",
-    description: "Tap to get directions"
-  };
+  useEffect(() => {
+    const loadLocations = async () => {
+      const data = await MapAPI.getFacilitiesLocations();
+      if (data && data.length > 0) {
+        setLocations(data);
+        // Optional: Keep map centered on user initially, or fit to elements
+      }
+    };
+    loadLocations();
+  }, []);
 
-  const openInMaps = () => {
+  const openInMaps = (loc) => {
     const url = Platform.select({
-      ios: `maps:0,0?q=${hospitalLocation.title}@${hospitalLocation.latitude},${hospitalLocation.longitude}`,
-      android: `geo:0,0?q=${hospitalLocation.latitude},${hospitalLocation.longitude}(${hospitalLocation.title})`,
+      ios: `maps:0,0?q=${loc.title}@${loc.latitude},${loc.longitude}`,
+      android: `geo:0,0?q=${loc.latitude},${loc.longitude}(${loc.title})`,
     });
     Linking.openURL(url);
-  };
-
-  const mapRegion = {
-    latitude: hospitalLocation.latitude,
-    longitude: hospitalLocation.longitude,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
   };
 
   return (
@@ -33,17 +41,32 @@ export function MapViewSection() {
       <View style={styles.mapContainer}>
         <MapView
           style={styles.map}
-          initialRegion={mapRegion}
+          region={initialRegion} // Use region to update when data loads
+          onRegionChangeComplete={(region) => setInitialRegion(region)}
         >
+          {/* User Location Marker */}
           <Marker
             coordinate={{
-              latitude: hospitalLocation.latitude,
-              longitude: hospitalLocation.longitude,
+              latitude: USER_LAT,
+              longitude: USER_LONG,
             }}
-            title={hospitalLocation.title}
-            description={hospitalLocation.description}
-            onCalloutPress={openInMaps}
+            title="You are here"
+            description="Current Location"
+            pinColor="#0ea5e9" // Blue color for user
           />
+
+          {locations.map((loc) => (
+            <Marker
+              key={loc.id}
+              coordinate={{
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+              }}
+              title={loc.title}
+              description={loc.description}
+              onCalloutPress={() => openInMaps(loc)}
+            />
+          ))}
         </MapView>
         <View style={styles.mapOverlay}>
           <TouchableOpacity style={styles.mapSearchBar}>
@@ -69,17 +92,31 @@ export function MapViewSection() {
         <View style={styles.fullscreenMapContainer}>
           <MapView
             style={styles.fullscreenMap}
-            initialRegion={mapRegion}
+            region={initialRegion}
           >
+            {/* User Location Marker */}
             <Marker
               coordinate={{
-                latitude: hospitalLocation.latitude,
-                longitude: hospitalLocation.longitude,
+                latitude: USER_LAT,
+                longitude: USER_LONG,
               }}
-              title={hospitalLocation.title}
-              description={hospitalLocation.description}
-              onCalloutPress={openInMaps}
+              title="You are here"
+              description="Current Location"
+              pinColor="#0ea5e9"
             />
+
+            {locations.map((loc) => (
+              <Marker
+                key={loc.id}
+                coordinate={{
+                  latitude: loc.latitude,
+                  longitude: loc.longitude,
+                }}
+                title={loc.title}
+                description={loc.description}
+                onCalloutPress={() => openInMaps(loc)}
+              />
+            ))}
           </MapView>
           <TouchableOpacity 
             style={styles.closeButton}
@@ -110,7 +147,7 @@ const styles = StyleSheet.create({
   },
   map: {
     width: '100%',
-    height: '200%',
+    height: '100%', // Fixed height percentage
   },
   mapOverlay: {
     position: 'absolute',

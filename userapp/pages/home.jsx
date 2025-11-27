@@ -7,6 +7,7 @@ import GeoAltFill from 'react-native-bootstrap-icons/icons/geo-alt-fill';
 import { AppHeader } from '../components/app-header';
 import { MapViewSection } from '../components/map-view-section';
 import { BrowseServices } from '../components/browse-services';
+import HomeAPI from '../services/homeApi'; // Added Import
 
 export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpenAppointmentBooking, onNavigateToCases }) {
   const [upcomingAppointment, setUpcomingAppointment] = useState(null);
@@ -20,22 +21,15 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpen
   const fetchAppointmentData = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await fetch('YOUR_API_ENDPOINT/appointments');
-      // const data = await resp../assets/map-view-section
       
-      // Simulated data for now
-      setTimeout(() => {
-        setUpcomingAppointment({
-          hospital: "Philippine General Hospital",
-          type: "General Check-up",
-          date: "Thursday, 27 Nov",
-          time: "10:30 AM - 11:30 AM"
-        });
-        setLoading(false);
-      }, 500);
+      // Fetch real data from API
+      const data = await HomeAPI.getHomeData();
+      
+      setUpcomingAppointment(data.upcomingAppointment);
+      
     } catch (error) {
-      console.error('Error fetching appointment:', error);
+      console.error('Error fetching home data:', error);
+    } finally {
       setLoading(false);
     }
   };

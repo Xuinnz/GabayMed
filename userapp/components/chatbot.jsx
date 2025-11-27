@@ -1,54 +1,108 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Linking } from 'react-native';
-import { ArrowLeft, Send, MapPin, Home, Paperclip, Mic } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Modal, Linking, ActivityIndicator } from 'react-native';
+import { ArrowLeft, Send, MapPin, Paperclip, Mic, AlertCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker } from 'react-native-maps';
+import ChatbotAPI from '../services/chatbotApi'; 
 
 export function SintomasAI({ onBack, isModal = false }) {
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      type: "ai",
-      content: "Hello, Red Gabriel\nHow are you feeling today?",
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
+  const [sessionId, setSessionId] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef(null);
+
+  // Initialize Session
+  useEffect(() => {
+    const initChat = async () => {
+      try {
+        setIsLoading(true);
+        const session = await ChatbotAPI.startOrGetSession();
+        setSessionId(session.id);
+
+        const history = await ChatbotAPI.getSessionMessages(session.id);
+        
+        if (history.length === 0) {
+          setMessages([{
+            id: "welcome",
+            type: "ai",
+            content: "Hello! I'm Gabay, your AI health assistant. How are you feeling today?",
+          }]);
+        } else {
+          setMessages(history.map(msg => ({
+            id: msg.id,
+            type: msg.sender_role === 'user' ? 'user' : 'ai',
+            content: msg.content,
+            metadata: msg.ai_metadata 
+          })));
+        }
+      } catch (error) {
+        console.error("Failed to init chat:", error);
+        setMessages([{
+          id: "error",
+          type: "ai",
+          content: "Sorry, I'm having trouble connecting right now. Please try again later.",
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initChat();
+  }, []);
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const handleSend = async () => {
+    if (!inputValue.trim() || !sessionId) return;
 
-    const userMessage = {
+    const userText = inputValue;
+    setInputValue(""); 
+
+    const tempUserMsg = {
       id: Date.now().toString(),
       type: "user",
-      content: inputValue,
+      content: userText,
     };
+    setMessages((prev) => [...prev, tempUserMsg]);
+    setIsLoading(true);
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
+    try { 
+      
+      const aiMsgData = await ChatbotAPI.sendMessage(sessionId, userText);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
-        id: (Date.now() + 1).toString(),
+      const aiMsg = {
+        id: aiMsgData.id,
         type: "ai",
-        content: `Thanks for sharing. Let me check — you have:
-• ${inputValue.includes("cough") ? "Cough" : "Symptom"} (${inputValue.includes("3 days") ? "3 days" : "recent"})
-• ${inputValue.includes("fever") ? "Fever (mild)" : "General discomfort"}
-
-Possible causes could include common flu or a mild respiratory infection.
-
-If your fever lasts more than 5 days, worsens, or you experience shortness of breath, it's best to see a doctor.
-
-The nearest facility that can assist you is:`,
-        showMap: true,
+        content: aiMsgData.content,
+        metadata: aiMsgData.ai_metadata
       };
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 1500);
+
+      setMessages((prev) => [...prev, aiMsg]);
+
+    } catch (error) {
+      console.error("Send failed:", error);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        type: "ai",
+        content: "I apologize, but I couldn't process that request. Please check your connection.",
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper to get badge colors
+  const getUrgencyStyles = (level) => {
+    switch (level) {
+      case 'EMERGENCY': return { bg: '#FEE2E2', text: '#991B1B' }; // Red
+      case 'HIGH': return { bg: '#FFEDD5', text: '#9A3412' };      // Orange
+      case 'MEDIUM': return { bg: '#FEF9C3', text: '#854D0E' };    // Yellow
+      case 'LOW': return { bg: '#DCFCE7', text: '#166534' };       // Green
+      default: return { bg: '#F3F4F6', text: '#374151' };          // Gray
+    }
   };
 
   const content = (
@@ -56,7 +110,6 @@ The nearest facility that can assist you is:`,
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header with Gradient */}
       <LinearGradient
         colors={['#66BAFF', '#83BFF0']}
         style={styles.header}
@@ -68,13 +121,18 @@ The nearest facility that can assist you is:`,
         <View style={{ width: 32 }} />
       </LinearGradient>
 
-      {/* Chat Messages */}
       <ScrollView 
         ref={scrollViewRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
       >
-        {messages.map((message) => (
+        {messages.map((message) => {
+          const urgency = message.metadata?.urgency_level;
+          const specialist = message.metadata?.recommended_specialist;
+          const showMap = urgency === 'EMERGENCY' || urgency === 'HIGH';
+          const urgencyStyle = getUrgencyStyles(urgency);
+
+          return (
             <View 
               key={message.id} 
               style={[
@@ -84,8 +142,26 @@ The nearest facility that can assist you is:`,
             >
               {message.type === "ai" ? (
                 <View style={styles.aiMessageContainer}>
+                  {/* NEW: Metadata Header */}
+                  {urgency && (
+                    <View style={styles.metaHeader}>
+                      <View style={[styles.urgencyBadge, { backgroundColor: urgencyStyle.bg }]}>
+                        <AlertCircle size={12} color={urgencyStyle.text} style={{ marginRight: 4 }} />
+                        <Text style={[styles.urgencyText, { color: urgencyStyle.text }]}>
+                          {urgency} URGENCY
+                        </Text>
+                      </View>
+                      {specialist && (
+                        <Text style={styles.specialistText}>
+                          Rec: <Text style={{ fontWeight: '600' }}>{specialist}</Text>
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
                   <Text style={styles.aiMessageText}>{message.content}</Text>
-                  {message.showMap && (
+                  
+                  {showMap && (
                     <View style={styles.mapContainer}>
                       <View style={styles.mapView}>
                         <MapView
@@ -128,7 +204,7 @@ The nearest facility that can assist you is:`,
                         <MapPin size={16} color="#0ea5e9" />
                         <View style={styles.locationText}>
                           <Text style={styles.locationName}>Philippine General Hospital</Text>
-                          <Text style={styles.locationDistance}>(Manila) ~2.1 km away.</Text>
+                          <Text style={styles.locationDistance}>Recommended for Emergency</Text>
                         </View>
                       </View>
                     </View>
@@ -140,10 +216,15 @@ The nearest facility that can assist you is:`,
                 </View>
               )}
             </View>
-          ))}
+          );
+        })}
+        {isLoading && (
+          <View style={styles.loadingBubble}>
+             <ActivityIndicator size="small" color="#66BAFF" />
+          </View>
+        )}
       </ScrollView>
 
-      {/* Input Area */}
       <View style={styles.inputContainerWrapper}>
         <View style={styles.inputContainer}>
           <View style={styles.inputIcons}>
@@ -165,7 +246,7 @@ The nearest facility that can assist you is:`,
               multiline
             />
           </View>
-          <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+          <TouchableOpacity onPress={handleSend} style={styles.sendButton} disabled={isLoading}>
             <Send size={20} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -224,6 +305,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   messageWrapper: {
     marginBottom: 20,
@@ -238,6 +320,32 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
+  },
+  // NEW STYLES FOR METADATA
+  metaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  urgencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  urgencyText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  specialistText: {
+    fontSize: 11,
+    color: '#4b5563',
   },
   aiMessageText: {
     fontSize: 14,
@@ -292,7 +400,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-
   locationInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -380,4 +487,13 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     height: '85%',
   },
+  loadingBubble: {
+    alignSelf: 'flex-start',
+    marginLeft: 20,
+    marginBottom: 20,
+    backgroundColor: '#E8F5FF',
+    padding: 12,
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+  }
 });

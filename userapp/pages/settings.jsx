@@ -17,8 +17,9 @@ import {
   X,
 } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
+import ProfileAPI from '../services/profileApi'; // Import ProfileAPI
 
-export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
+export function SettingsPage({ onOpenMessages, onOpenNotifications, onSignOut }) { // Added onSignOut prop
   const [showProfile, setShowProfile] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,22 +36,8 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
   const fetchProfileData = async () => {
     setLoading(true);
     try {
-      // Simulating API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const data = {
-        name: "Red Gabriel",
-        age: 28,
-        birthdate: "March 15, 1996",
-        gender: "Male",
-        phone: "+63 912 345 6789",
-        email: "red.gabriel@email.com",
-        address: "123 Taft Avenue, Manila, Philippines",
-        bloodType: "O+",
-        allergies: "Penicillin, Sulfa drugs",
-        medicalHistory: ["Hypertension (2020)", "Appendectomy (2018)", "Asthma (childhood)"],
-      };
-      
+      // Use ProfileAPI instead of simulation
+      const data = await ProfileAPI.getProfile();
       setProfileData(data);
       setShowProfile(true);
     } catch (error) {
@@ -79,25 +66,49 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
       "Are you sure you want to sign out?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Sign Out", style: "destructive", onPress: () => {
-          Alert.alert("Signed Out", "You have been signed out successfully");
-        }}
+        { 
+          text: "Sign Out", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await ProfileAPI.signOut();
+              if (onSignOut) onSignOut(); // Callback to parent to switch screens
+            } catch (error) {
+              Alert.alert("Error", "Failed to sign out");
+            }
+          }
+        }
       ]
     );
   };
 
   const handleEditProfile = () => {
-    setEditedData({ ...profileData });
+    // Convert array to comma-separated string for editing
+    setEditedData({ 
+      ...profileData,
+      medicalHistory: Array.isArray(profileData.medicalHistory) 
+        ? profileData.medicalHistory.join(', ') 
+        : ''
+    });
     setIsEditing(true);
   };
 
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      // Simulating API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Use ProfileAPI to update (sends string for medicalHistory)
+      await ProfileAPI.updateProfile(editedData);
       
-      setProfileData(editedData);
+      // Refresh local data
+      // Convert string back to array for display
+      const updatedProfile = {
+        ...editedData,
+        medicalHistory: typeof editedData.medicalHistory === 'string'
+          ? editedData.medicalHistory.split(',').map(s => s.trim()).filter(Boolean)
+          : []
+      };
+
+      setProfileData(updatedProfile);
       setIsEditing(false);
       Alert.alert("Success", "Profile updated successfully!");
     } catch (error) {
@@ -201,9 +212,13 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
               </View>
               <View style={styles.medicalSection}>
                 <Text style={styles.infoLabel}>Medical History</Text>
-                {profileData.medicalHistory.map((item, index) => (
-                  <Text key={index} style={styles.historyItem}>• {item}</Text>
-                ))}
+                {profileData.medicalHistory.length > 0 ? (
+                  profileData.medicalHistory.map((item, index) => (
+                    <Text key={index} style={styles.historyItem}>• {item.trim()}</Text>
+                  ))
+                ) : (
+                  <Text style={styles.historyItem}>No medical history recorded.</Text>
+                )}
               </View>
             </View>
           </View>
@@ -215,6 +230,7 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
           visible={isEditing}
           animationType="slide"
           transparent={false}
+          onRequestClose={handleCancelEdit}
         >
           <View style={styles.editModalContainer}>
             <View style={styles.editModalHeader}>
@@ -256,16 +272,16 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
                   />
                 </View>
 
+                {/* Email is usually read-only in profile edits for security, but keeping editable if desired */}
                 <View style={styles.editField}>
                   <Text style={styles.editLabel}>Email</Text>
                   <TextInput
-                    style={styles.editInput}
+                    style={[styles.editInput, { backgroundColor: '#f3f4f6', color: '#9ca3af' }]}
                     value={editedData?.email}
-                    onChangeText={(text) => setEditedData({...editedData, email: text})}
+                    editable={false} 
                     placeholder="Enter email"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
                   />
+                  <Text style={{fontSize: 10, color: '#9ca3af', marginTop: 4}}>Email cannot be changed here.</Text>
                 </View>
 
                 <View style={styles.editField}>
@@ -300,9 +316,22 @@ export function SettingsPage({ onOpenMessages, onOpenNotifications }) {
                     style={[styles.editInput, styles.editInputMultiline]}
                     value={editedData?.allergies}
                     onChangeText={(text) => setEditedData({...editedData, allergies: text})}
-                    placeholder="Enter allergies (comma separated)"
+                    placeholder="Enter allergies"
                     multiline
                     numberOfLines={2}
+                  />
+                </View>
+
+                {/* NEW: Medical History Input */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Medical History (comma separated)</Text>
+                  <TextInput
+                    style={[styles.editInput, styles.editInputMultiline]}
+                    value={editedData?.medicalHistory}
+                    onChangeText={(text) => setEditedData({...editedData, medicalHistory: text})}
+                    placeholder="e.g. Hypertension, Asthma, Diabetes"
+                    multiline
+                    numberOfLines={3}
                   />
                 </View>
               </View>

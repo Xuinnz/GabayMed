@@ -11,6 +11,7 @@ import { NotificationsPage } from './pages/notifications';
 import { BottomNav } from './components/bottom-nav';
 import { SintomasAI } from './components/chatbot';
 import { AppointmentBooking } from './components/appointment';
+import 'react-native-url-polyfill/auto';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');

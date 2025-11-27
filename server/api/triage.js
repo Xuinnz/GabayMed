@@ -1,63 +1,119 @@
 const Groq = require('groq-sdk');
-const allowCors = require('./cors'); // Import the helper
+const { z } = require('zod'); // STRICT VALIDATION REQUIRED
+const allowCors = require('./cors'); 
 
-// Initialize Groq
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-// The Core Logic (Now clean of CORS headers)
-const handler = async (request, response) => {
-    // 1. Validate Input
-    const { symptoms, medical_history } = request.body;
+// 1. Define the Expected Output Schema
+// If the AI returns garbage, this ensures your app doesn't crash.
+const TriageSchema = z.object({
+    urgency_level: z.enum(["LOW", "MEDIUM", "HIGH", "EMERGENCY"]),
+    primary_suspect_condition: z.string(),
+    recommended_specialist: z.string(),
+    reasoning: z.string(),
+    triage_questions: z.array(z.string()).optional(),
+    user_friendly_response: z.string(),
+});
 
-    if (!symptoms) {
+// 2. The "Rules-First" Safety Filter
+// Do not waste tokens or risk AI hallucination on obvious emergencies.
+const EMERGENCY_KEYWORDS = /chest pain|trouble breathing|severe bleeding|stroke|loss of consciousness|suicide|overdose|heart attack/i;
+
+const handler = async (request, response) => {
+    // 3. Validate Input Variables
+    const { age, medical_history, allergies, user_complaint } = request.body;
+
+    if (!user_complaint) {
         return response.status(400).json({ error: "Symptoms are required" });
     }
 
     try {
-        // 2. The "System Prompt"
-        // We command the AI to act as a JSON machine.
-        const systemPrompt = `
-        You are a medical triage API for the Philippines. 
-        Analyze the symptoms and medical history. 
+        // --- LAYER 1: DETERMINISTIC RED FLAG CHECK ---
+        // If the user says "chest pain", we force an emergency response instantly.
+        if (EMERGENCY_KEYWORDS.test(user_complaint)) {
+            console.log("High-risk keyword detected. Bypassing AI.");
+            return response.status(200).json({
+                urgency_level: "EMERGENCY",
+                primary_suspect_condition: "Detected Critical Emergency Symptoms",
+                recommended_specialist: "Emergency Medicine",
+                reasoning: "User reported symptoms matching critical emergency keywords.",
+                triage_questions: [],
+                user_friendly_response: "Based on your symptoms, you may be experiencing a medical emergency. Please proceed to the nearest Emergency Room immediately."
+            });
+        }
+
+        // --- LAYER 2: AI TRIAGE ---
         
-        CRITICAL RULES:
-        1. Output ONLY valid JSON. Do not write introductions.
-        2. Use exactly these fields: 
-           - "likely_condition": (Short string, e.g., "Acute Gastritis")
-           - "suggested_specialty": (One of: "General Medicine", "Cardiologist", "Pediatrics", "Dentist", "Neurology", "Orthopedics", "Pulmonology")
-           - "urgency_level": ("HIGH", "MEDIUM", "LOW")
-           - "reasoning": (Short explanation, max 1 sentence)
-        3. If symptoms match a heart attack, stroke, or severe difficulty breathing, set urgency to "HIGH".
+        const systemPrompt = `
+        You are Gabay, an AI medical triage assistant. Your goal is NOT to diagnose diseases but to assess symptom urgency and recommend the appropriate medical specialist.
+
+        SAFETY PROTOCOL:
+        1. NEVER provide a definitive diagnosis (e.g., "You have pneumonia"). Use "Symptoms are consistent with...".
+        2. IF symptoms suggest life-threat (chest pain, stroke, severe bleeding), urgency MUST be "EMERGENCY".
+        3. Map symptoms to a specific medical specialization (e.g., Nephrology, Cardiology) for routing.
+
+        OUTPUT FORMAT:
+        Respond ONLY with a valid JSON object matching this structure:
+        {
+            "urgency_level": "LOW" | "MEDIUM" | "HIGH" | "EMERGENCY",
+            "primary_suspect_condition": "Brief description (NOT diagnosis)",
+            "recommended_specialist": "Specialty Name",
+            "reasoning": "Short explanation",
+            "triage_questions": ["Question 1", "Question 2"],
+            "user_friendly_response": "Clear, compassionate message. End with 'This is an AI assessment, not a medical diagnosis.'"
+        }
         `;
 
+        // FIXED: Variables now match the destructuring from request.body
         const userContent = `
-        Symptoms: ${symptoms}
-        Medical History: ${JSON.stringify(medical_history || {})}
+        User Profile:
+        - Age: ${age || "Not stated"}
+        - History: ${medical_history || "None"}
+        - Allergies: ${allergies || "None"}
+
+        User Complaint: "${user_complaint}"
         `;
 
-        // 3. Call the Groq Llama-3 Model
         const chatCompletion = await groq.chat.completions.create({
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userContent }
             ],
-            model: 'llama-3.1-8b-instant', // Fast & Cheap
-            temperature: 0.1,        // Low temp = strict JSON
-            response_format: { type: "json_object" } // Enforce JSON mode
+            model: 'llama-3.1-8b-instant', 
+            temperature: 0.1, 
+            response_format: { type: "json_object" }
         });
 
-        // 4. Parse and Return
-        const aiResponse = JSON.parse(chatCompletion.choices[0].message.content);
+        // 4. Parse and Validate with Zod
+        // Llama-3-8b is fast but can be "dumb". It might miss a comma.
+        const rawContent = chatCompletion.choices[0].message.content;
+        let aiResponse;
+        
+        try {
+             aiResponse = JSON.parse(rawContent);
+             // VALIDATE STRUCTURE
+             aiResponse = TriageSchema.parse(aiResponse);
+        } catch (validationError) {
+             console.error("AI JSON Validation Failed:", rawContent);
+             // Fallback if AI fails to generate valid JSON
+             return response.status(200).json({
+                 urgency_level: "MEDIUM", // Default to caution
+                 primary_suspect_condition: "Unclear Symptoms",
+                 recommended_specialist: "General Practitioner",
+                 reasoning: "The system could not definitively categorize the input.",
+                 triage_questions: ["Could you describe your symptoms in more detail?"],
+                 user_friendly_response: "I'm having trouble understanding. Please consult a General Practitioner or describe your symptoms differently."
+             });
+        }
         
         return response.status(200).json(aiResponse);
 
     } catch (error) {
-        console.error("AI Error:", error);
+        console.error("System Error:", error);
         return response.status(500).json({ error: "Failed to process triage." });
     }
 }
 
-// 5. Wrap the handler with the CORS helper
 module.exports = allowCors(handler);

@@ -4,21 +4,34 @@ import { Calendar, X, ChevronRight, CreditCard, Building2, ArrowDownLeft, ArrowU
 import { AppHeader } from '../components/app-header';
 import { AppointmentBooking } from '../components/appointment';
 import { GradientButton, GradientText, GradientIcon } from '../components/ui/gradient-button';
-import { facilitiesData, schedulesData, activitiesData, balancesData } from '../data/facilitiesData';
+import FacilitiesAPI from '../services/facilitiesApi';
 
 export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
-  const [selectedFacility, setSelectedFacility] = useState("pgh");
+  const [selectedFacility, setSelectedFacility] = useState(null);
   const [showAllBalances, setShowAllBalances] = useState(false);
   const [showAllSchedules, setShowAllSchedules] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
+  
+  // Payment State
   const [selectedProcedure, setSelectedProcedure] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("GCash"); // Default
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
   const [loading, setLoading] = useState(true);
+  
+  // Raw Data State
   const [facilities, setFacilities] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [activities, setActivities] = useState([]);
-  const [balances, setBalances] = useState([]);
+  const [allSchedules, setAllSchedules] = useState([]);
+  const [allActivities, setAllActivities] = useState([]);
+  const [allBalances, setAllBalances] = useState([]);
+  const [totalPendingBalance, setTotalPendingBalance] = useState(0);
+
+  // Derived Data (Filtered by Selected Facility)
+  const schedules = selectedFacility ? allSchedules.filter(s => s.facilityId === selectedFacility) : [];
+  const activities = selectedFacility ? allActivities.filter(a => a.facilityId === selectedFacility) : [];
+  const balances = selectedFacility ? allBalances.filter(b => b.facilityId === selectedFacility) : [];
 
   // Reusable ScheduleCard component
   const ScheduleCard = ({ schedule, isSmall }) => {
@@ -27,7 +40,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
       Done: { badge: styles.doneBadge, text: styles.doneText },
       Cancelled: { badge: styles.cancelledBadge, text: styles.cancelledText },
     };
-    const { badge, text } = statusStyles[schedule.status] || statusStyles.Scheduled;
+    const { badge, text } = statusStyles[schedule.status] || { badge: styles.scheduledBadge, text: styles.scheduledText };
 
     return (
       <View style={isSmall ? styles.scheduleCardGrid : styles.scheduleCard}>
@@ -65,30 +78,101 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
   const fetchFacilitiesData = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API calls
-      // const facilitiesRes = await fetch('YOUR_API_ENDPOINT/facilities');
-      // const schedulesRes = await fetch('YOUR_API_ENDPOINT/schedules');
-      // const activitiesRes = await fetch('YOUR_API_ENDPOINT/activities');
-      // const balancesRes = await fetch('YOUR_API_ENDPOINT/balances');
       
-      // Simulated data
-      setTimeout(() => {
-        setFacilities(facilitiesData);
-        setSchedules(schedulesData);
-        setActivities(activitiesData);
-        setBalances(balancesData);
+      const data = await FacilitiesAPI.getFacilitiesPageData();
+      
+      setFacilities(data.facilities);
+      setAllSchedules(data.schedules);
+      setAllActivities(data.activities);
+      setAllBalances(data.balances);
+      setTotalPendingBalance(data.totalPendingBalance || 0);
 
-        setLoading(false);
-      }, 800);
+      if (data.facilities.length > 0 && !selectedFacility) {
+        setSelectedFacility(data.facilities[0].id);
+      }
+
     } catch (error) {
       console.error('Error fetching facilities data:', error);
       Alert.alert('Error', 'Failed to load facilities data');
+    } finally {
       setLoading(false);
     }
   };
 
-  const totalBalance = balances.reduce((sum, b) => sum + b.amount, 0);
+  const handleConfirmPayment = async () => {
+    if (!paymentAmount || isNaN(paymentAmount) || parseFloat(paymentAmount) <= 0) {
+      Alert.alert("Invalid Amount", "Please enter a valid payment amount.");
+      return;
+    }
+
+    if (!selectedProcedure) {
+      Alert.alert("Selection Required", "Please select which procedure/bill you are paying for.");
+      return;
+    }
+
+    // Find the selected balance object to get the patientId
+    const selectedBalance = balances.find(b => b.id === selectedProcedure);
+    if (!selectedBalance) {
+      Alert.alert("Error", "Selected procedure not found.");
+      return;
+    }
+
+    setIsSubmittingPayment(true);
+    try {
+      const result = await FacilitiesAPI.addPayment({
+        patientId: selectedBalance.patientId,
+        amount: paymentAmount,
+        method: selectedPaymentMethod
+      });
+
+      if (result.success) {
+        Alert.alert("Success", "Payment processed successfully!");
+        setShowPaymentModal(false);
+        setPaymentAmount("");
+        setSelectedProcedure("");
+        // Refresh data to show new balance
+        fetchFacilitiesData();
+      } else {
+        Alert.alert("Error", "Payment failed: " + result.error);
+      }
+    } catch (error) {
+      Alert.alert("Error", "An unexpected error occurred.");
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
   const currentFacility = facilities.find((f) => f.id === selectedFacility);
+
+  const renderActivityItem = (activity) => {
+    const isCharge = activity.amount > 0;
+    return (
+      <View key={activity.id} style={styles.activityItem}>
+        <View style={styles.activityLeft}>
+          <View style={[
+            styles.activityIcon,
+            isCharge ? styles.chargeIcon : styles.paymentIcon
+          ]}>
+            {isCharge ? (
+              <ArrowUpRight size={20} color="#fff" />
+            ) : (
+              <ArrowDownLeft size={20} color="#fff" />
+            )}
+          </View>
+          <View>
+            <Text style={styles.activityDescription}>{activity.description}</Text>
+            <Text style={styles.activityTime}>{activity.time}</Text>
+          </View>
+        </View>
+        <Text style={[
+          styles.activityAmount,
+          isCharge ? styles.chargeText : styles.paymentText
+        ]}>
+          {isCharge ? "-" : "+"}₱{Math.abs(activity.amount).toLocaleString()}
+        </Text>
+      </View>
+    );
+  };
 
   if (loading) {
     return (
@@ -110,7 +194,6 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Current Provider</Text>
 
-          {/* Facility Card */}
           {currentFacility && (
             <View style={styles.facilityCard}>
               <TouchableOpacity
@@ -141,43 +224,51 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
             </View>
           )}
 
-          {/* Facility Selector if none selected */}
           {!selectedFacility && (
             <View style={styles.facilitySelectorContainer}>
-              {facilities.map((facility) => (
-                <TouchableOpacity
-                  key={facility.id}
-                  onPress={() => setSelectedFacility(facility.id)}
-                  style={styles.facilitySelectorCard}
-                >
-                  <View style={styles.facilitySelectorContent}>
-                    <View style={styles.facilityIcon}>
-                      <Building2 size={24} color="#0ea5e9" />
+              {facilities.length > 0 ? (
+                facilities.map((facility) => (
+                  <TouchableOpacity
+                    key={facility.id}
+                    onPress={() => setSelectedFacility(facility.id)}
+                    style={styles.facilitySelectorCard}
+                  >
+                    <View style={styles.facilitySelectorContent}>
+                      <View style={styles.facilityIcon}>
+                        <Building2 size={24} color="#0ea5e9" />
+                      </View>
+                      <View style={styles.facilitySelectorInfo}>
+                        <Text style={styles.facilitySelectorName}>{facility.name}</Text>
+                        <Text style={styles.facilitySelectorLastVisit}>Last Visit: {facility.lastVisit}</Text>
+                      </View>
                     </View>
-                    <View style={styles.facilitySelectorInfo}>
-                      <Text style={styles.facilitySelectorName}>{facility.name}</Text>
-                      <Text style={styles.facilitySelectorLastVisit}>Last Visit: {facility.lastVisit}</Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color="#9ca3af" />
-                </TouchableOpacity>
-              ))}
+                    <ChevronRight size={20} color="#9ca3af" />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={{ textAlign: 'center', color: '#6b7280', marginTop: 20 }}>
+                  No facilities linked to your account.
+                </Text>
+              )}
             </View>
           )}
         </View>
 
-        {selectedFacility && (
+        {selectedFacility !== null && (
           <>
-            {/* Your Schedule */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Your Schedule</Text>
-                <TouchableOpacity onPress={() => setShowAllSchedules(!showAllSchedules)}>
-                  <Text style={styles.seeAllButton}>{showAllSchedules ? 'Show Less' : 'See All'}</Text>
-                </TouchableOpacity>
+                {schedules.length > 2 && (
+                  <TouchableOpacity onPress={() => setShowAllSchedules(!showAllSchedules)}>
+                    <Text style={styles.seeAllButton}>{showAllSchedules ? 'Show Less' : 'See All'}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {showAllSchedules ? (
+              {schedules.length === 0 ? (
+                <Text style={{ color: '#9ca3af', marginTop: 12, fontStyle: 'italic' }}>No appointments scheduled.</Text>
+              ) : showAllSchedules ? (
                 <View style={styles.scheduleGrid}>
                   {schedules.map((schedule) => (
                     <ScheduleCard key={schedule.id} schedule={schedule} isSmall />
@@ -192,49 +283,29 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
               )}
             </View>
 
-            {/* Account Activity */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Account Activity</Text>
-                <TouchableOpacity onPress={() => setShowAllBalances(true)}>
-                  <Text style={styles.seeAllButton}>See All</Text>
-                </TouchableOpacity>
+                {activities.length > 0 && (
+                  <TouchableOpacity onPress={() => setShowAllBalances(true)}>
+                    <Text style={styles.seeAllButton}>See All</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.activityContainer}>
-                {activities.map((activity) => (
-                  <View key={activity.id} style={styles.activityItem}>
-                    <View style={styles.activityLeft}>
-                      <View style={[
-                        styles.activityIcon,
-                        activity.amount < 0 ? styles.paymentIcon : styles.cashbackIcon
-                      ]}>
-                        {activity.amount < 0 ? (
-                          <ArrowUpRight size={20} color="#fff" />
-                        ) : (
-                          <ArrowDownLeft size={20} color="#fff" />
-                        )}
-                      </View>
-                      <View>
-                        <Text style={styles.activityDescription}>{activity.description}</Text>
-                        <Text style={styles.activityTime}>{activity.time}</Text>
-                      </View>
-                    </View>
-                    <Text style={[
-                      styles.activityAmount,
-                      activity.amount < 0 ? styles.negativeAmount : styles.positiveAmount
-                    ]}>
-                      {activity.amount < 0 ? "-" : "+"}₱{Math.abs(activity.amount)}
-                    </Text>
-                  </View>
-                ))}
+                {activities.length === 0 ? (
+                  <Text style={{ color: '#9ca3af', marginTop: 12, fontStyle: 'italic' }}>No recent activity.</Text>
+                ) : (
+                  activities.slice(0, 3).map(renderActivityItem)
+                )} 
               </View>
             </View>
           </>
         )}
       </ScrollView>
 
-      {/* All Balances Modal */}
+      {/* Account Activity / Balances Modal */}
       <Modal
         visible={showAllBalances}
         transparent={true}
@@ -244,7 +315,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Outstanding Balance</Text>
+              <Text style={styles.modalTitle}>Account Activity</Text>
               <TouchableOpacity
                 onPress={() => setShowAllBalances(false)}
                 style={styles.modalCloseButton}
@@ -256,31 +327,31 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
             <View style={styles.modalBody}>
               <View style={styles.totalBalanceCard}>
                 <Text style={styles.totalBalanceLabel}>Total Pending Balance</Text>
-                <Text style={styles.totalBalanceAmount}>₱{totalBalance.toLocaleString()}</Text>
+                <Text style={styles.totalBalanceAmount}>₱{totalPendingBalance.toLocaleString()}</Text>
               </View>
 
-              <View style={styles.balancesList}>
-                {balances.map((balance) => (
-                  <View key={balance.id} style={styles.balanceItem}>
-                    <View>
-                      <Text style={styles.balanceProcedure}>{balance.procedure}</Text>
-                      <Text style={styles.balanceDate}>{balance.date}</Text>
-                    </View>
-                    <Text style={styles.balanceAmount}>₱{balance.amount.toLocaleString()}</Text>
-                  </View>
-                ))}
-              </View>
+              <ScrollView style={{ maxHeight: 300 }}>
+                <View style={styles.balancesList}>
+                  {activities.length === 0 ? (
+                     <Text style={{ textAlign: 'center', color: '#6b7280', padding: 20 }}>No activity history.</Text>
+                  ) : (
+                    activities.map(renderActivityItem)
+                  )}
+                </View>
+              </ScrollView>
 
-              <GradientButton
-                onPress={() => {
-                  setShowAllBalances(false);
-                  setShowPaymentModal(true);
-                }}
-                style={styles.makePaymentButton}
-              >
-                <CreditCard size={16} color="#fff" />
-                <Text style={styles.makePaymentButtonText}>Make Payment</Text>
-              </GradientButton>
+              {balances.length > 0 && (
+                <GradientButton
+                  onPress={() => {
+                    setShowAllBalances(false);
+                    setShowPaymentModal(true);
+                  }}
+                  style={styles.makePaymentButton}
+                >
+                  <CreditCard size={16} color="#fff" />
+                  <Text style={styles.makePaymentButtonText}>Make Payment</Text>
+                </GradientButton>
+              )}
             </View>
           </View>
         </View>
@@ -324,7 +395,11 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                   {balances.map((balance) => (
                     <TouchableOpacity
                       key={balance.id}
-                      onPress={() => setSelectedProcedure(balance.id)}
+                      onPress={() => {
+                        setSelectedProcedure(balance.id);
+                        // Auto-fill amount if empty
+                        if (!paymentAmount) setPaymentAmount(balance.amount.toString());
+                      }}
                       style={[
                         styles.selectOption,
                         selectedProcedure === balance.id && styles.selectOptionActive
@@ -345,22 +420,39 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
                 <Text style={styles.inputLabel}>Payment Method</Text>
                 <View style={styles.paymentMethodGrid}>
                   {["Pay at Counter", "GCash", "Credit/Debit Card", "Online Banking"].map((method) => (
-                    <TouchableOpacity key={method} style={styles.paymentMethodButton}>
-                      <Text style={styles.paymentMethodText}>{method}</Text>
+                    <TouchableOpacity 
+                      key={method} 
+                      style={[
+                        styles.paymentMethodButton,
+                        selectedPaymentMethod === method && styles.paymentMethodButtonActive
+                      ]}
+                      onPress={() => setSelectedPaymentMethod(method)}
+                    >
+                      <Text style={[
+                        styles.paymentMethodText,
+                        selectedPaymentMethod === method && styles.paymentMethodTextActive
+                      ]}>{method}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
 
-              <GradientButton style={styles.confirmPaymentButton}>
-                <Text style={styles.confirmPaymentButtonText}>Confirm Payment</Text>
+              <GradientButton 
+                style={styles.confirmPaymentButton}
+                onPress={handleConfirmPayment}
+                disabled={isSubmittingPayment}
+              >
+                {isSubmittingPayment ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmPaymentButtonText}>Confirm Payment</Text>
+                )}
               </GradientButton>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* Appointment Booking Modal */}
       <AppointmentBooking
         visible={showAppointment}
         onClose={() => setShowAppointment(false)}
@@ -633,10 +725,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paymentIcon: {
-    backgroundColor: '#E26F6F',
+    backgroundColor: '#6FE2B2', // Green
   },
-  cashbackIcon: {
-    backgroundColor: '#6FE2B2',
+  chargeIcon: {
+    backgroundColor: '#E26F6F', // Red
   },
   activityDescription: {
     fontSize: 16,
@@ -652,11 +744,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  negativeAmount: {
-    color: '#E26F6F',
+  paymentText: {
+    color: '#6FE2B2', // Green
   },
-  positiveAmount: {
-    color: '#6FE2B2',
+  chargeText: {
+    color: '#E26F6F', // Red
   },
   modalOverlay: {
     flex: 1,
@@ -716,29 +808,6 @@ const styles = StyleSheet.create({
   },
   balancesList: {
     gap: 12,
-  },
-  balanceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-  },
-  balanceProcedure: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#1f2937',
-  },
-  balanceDate: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  balanceAmount: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
   },
   makePaymentButton: {
     flexDirection: 'row',
@@ -808,9 +877,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  paymentMethodButtonActive: {
+    borderColor: '#0ea5e9',
+    backgroundColor: '#e0f2fe',
+  },
   paymentMethodText: {
     fontSize: 14,
     color: '#374151',
+  },
+  paymentMethodTextActive: {
+    color: '#0284c7',
+    fontWeight: '600',
   },
   confirmPaymentButton: {
     paddingVertical: 12,
