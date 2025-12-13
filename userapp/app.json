@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "GabayMed",
+    "slug": "GabayMed",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/Logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/LogoName.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/LogoName.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/Logo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "15d1e91e-371e-4937-9d0d-ab38415867f8"
+      }
+    }
+  }
+}

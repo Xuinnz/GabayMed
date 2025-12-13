@@ -1,230 +1,543 @@
-"use client"
+import { useState, useEffect } from "react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, Search, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarView } from "@/components/calendar-view" 
+import { format } from "date-fns"
+import { appointmentAPI } from "../../services/appointment"
 
-import { useState } from "react"
-import { Check, Paperclip, Clock, AlertCircle } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { AppointmentDetailsModal } from "@/components/appointment-details-modal"
-
-const providers = [
-  { id: "p1", name: "Dr. Smith", role: "Surgeon" },
-  { id: "p2", name: "Dr. Jones", role: "Specialist" },
-  { id: "p3", name: "Nurse Ann", role: "Assistant" },
-  { id: "p4", name: "Dr. Garcia", role: "Urologist" },
-  { id: "p5", name: "Nurse Mike", role: "Assistant" },
-]
-
-const timeSlots = [
-  "08:00 AM",
-  "08:30 AM",
-  "09:00 AM",
-  "09:30 AM",
-  "10:00 AM",
-  "10:30 AM",
-  "11:00 AM",
-  "11:30 AM",
-  "12:00 PM",
-  "12:30 PM",
-  "1:00 PM",
-]
-
-const appointments = [
-  {
-    id: "1",
-    patientName: "Sarah Johnson",
-    time: "08:00 AM",
-    duration: 2,
-    operatory: "OP-1",
-    procedures: ["Pre-op Consult", "Bloodwork"],
-    status: "checked-in",
-    providerId: "p1",
-    color: "bg-blue-100 border-blue-200 text-blue-800",
-  },
-  {
-    id: "2",
-    patientName: "Mike Peters",
-    time: "09:30 AM",
-    duration: 3,
-    operatory: "OP-1",
-    procedures: ["Vasectomy"],
-    status: "confirmed",
-    providerId: "p1",
-    color: "bg-green-100 border-green-200 text-green-800",
-  },
-  {
-    id: "3",
-    patientName: "Emily Davis",
-    time: "08:30 AM",
-    duration: 2,
-    operatory: "OP-2",
-    procedures: ["Appendectomy Follow-up"],
-    status: "confirmed",
-    providerId: "p2",
-    color: "bg-purple-100 border-purple-200 text-purple-800",
-  },
-  {
-    id: "4",
-    patientName: "James Wilson",
-    time: "11:00 AM",
-    duration: 3,
-    operatory: "OP-HYG",
-    procedures: ["Hernia Repair", "Anesthesia"],
-    status: "needs-action",
-    providerId: "p3",
-    color: "bg-orange-100 border-orange-200 text-orange-800",
-  },
-  {
-    id: "5",
-    patientName: "Robert Taylor",
-    time: "09:00 AM",
-    duration: 1,
-    operatory: "OP-3",
-    procedures: ["Suture Removal"],
-    status: "completed",
-    providerId: "p4",
-    color: "bg-red-100 border-red-200 text-red-800",
-  },
-  {
-    id: "6",
-    patientName: "Linda Anderson",
-    time: "10:30 AM",
-    duration: 2,
-    operatory: "OP-3",
-    procedures: ["Gallbladder Consult"],
-    status: "confirmed",
-    providerId: "p4",
-    color: "bg-indigo-100 border-indigo-200 text-indigo-800",
-  },
-  {
-    id: "7",
-    patientName: "Tom Brown",
-    time: "08:00 AM",
-    duration: 1,
-    operatory: "OP-HYG-2",
-    procedures: ["Vitals Check"],
-    status: "checked-in",
-    providerId: "p5",
-    color: "bg-teal-100 border-teal-200 text-teal-800",
-  },
-  {
-    id: "8",
-    patientName: "Lisa White",
-    time: "09:00 AM",
-    duration: 2,
-    operatory: "OP-HYG-2",
-    procedures: ["Post-op Care", "Wound Dressing"],
-    status: "confirmed",
-    providerId: "p5",
-    color: "bg-teal-100 border-teal-200 text-teal-800",
-  },
-]
+const hours = Array.from({ length: 10 }, (_, i) => i + 8) // 8 AM to 5 PM
 
 export function AppointmentScheduler() {
-  const [selectedAppointment, setSelectedAppointment] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedSlot, setSelectedSlot] = useState(null)
+  
+  // State for API Data
+  const [providers, setProviders] = useState([])
+  const [bookedAppointments, setBookedAppointments] = useState([])
+  const [procedures, setProcedures] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // Search State
+  const [patientSearchResults, setPatientSearchResults] = useState([])
+
+  const [formData, setFormData] = useState({
+    patient: '',
+    patientId: null, // Added to store ID
+    status: 'unconfirmed',
+    procedure: '',
+    operatory: '',
+    primaryProvider: '',
+    additionalProvider: '',
+    length: '30',
+    notes: ''
+  })
+
+  // Fetch Data on Mount and Date Change
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const providersData = await appointmentAPI.getProviders();
+        setProviders(providersData);
+
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+
+        const proceduresData = await appointmentAPI.getProcedures();
+        setProcedures(proceduresData);
+
+      } catch (error) {
+        console.error("Failed to load scheduler data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [selectedDate]);
+
+  const getAppointmentForSlot = (providerId, time) => {
+    return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
+  }
+
+  // NEW FUNCTION: Handle slot clicks to initialize form data
+  const handleSlotClick = (providerId, time, appointment) => {
+    setSelectedSlot({ providerId, time, date: selectedDate, appointment })
+    
+    if (!appointment) {
+      // Initialize form data so "Save" button works immediately
+      setFormData({
+        patient: '',
+        patientId: null,
+        status: 'PENDING', 
+        procedure: '',
+        operatory: '',
+        primaryProvider: providerId.toString(), 
+        additionalProvider: '',
+        length: '30',
+        notes: ''
+      })
+    } else {
+      // POPULATE FORM FOR EDITING
+      setFormData({
+        patient: appointment.patient,
+        patientId: appointment.patientId,
+        status: appointment.status,
+        procedure: appointment.procedureId ? appointment.procedureId.toString() : '',
+        operatory: appointment.operatory || 'Room 101',
+        primaryProvider: appointment.providerId.toString(),
+        additionalProvider: '',
+        length: appointment.length.toString(),
+        notes: appointment.notes || ''
+      })
+    }
+  }
+
+  const handleNewAppointment = () => {
+    if (providers.length === 0) return;
+    
+    setSelectedSlot({ providerId: providers[0].id, time: 8, date: selectedDate, appointment: null })
+    setFormData({
+      patient: '',
+      patientId: null,
+      status: 'PENDING', // Changed from 'unconfirmed' to match Select options
+      procedure: '',
+      operatory: '',
+      primaryProvider: providers[0].id.toString(),
+      additionalProvider: '',
+      length: '30',
+      notes: ''
+    })
+  }
+
+  // --- New Search Logic ---
+  const handlePatientSearch = async (value) => {
+    setFormData({ ...formData, patient: value, patientId: null }); // Reset ID on type
+    if (value.length > 1) {
+        const results = await appointmentAPI.searchPatients(value);
+        setPatientSearchResults(results);
+    } else {
+        setPatientSearchResults([]);
+    }
+  }
+
+  const selectPatient = (patient) => {
+      setFormData({ ...formData, patient: patient.name, patientId: patient.id });
+      setPatientSearchResults([]);
+  }
+  // ------------------------
+
+  // --- Save Logic ---
+  const handleSave = async () => {
+    if (!formData.patientId) {
+        alert("Please select a valid patient from the search results.");
+        return;
+    }
+
+    // Construct Date Time
+    const date = new Date(selectedSlot.date);
+    date.setHours(selectedSlot.time, 0, 0, 0);
+    // Adjust for timezone offset if necessary, or use local ISO
+    // For simplicity, using ISO string (UTC)
+    
+    const newAppointment = {
+        patientId: formData.patientId,
+        providerId: formData.primaryProvider,
+        procedureId: formData.procedure,
+        date: date.toISOString(),
+        duration: formData.length,
+        status: formData.status,
+        notes: formData.notes
+    };
+
+    const result = await appointmentAPI.createAppointment(newAppointment);
+    
+    if (result.success) {
+        // Refresh Grid
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+        setSelectedSlot(null); // Close panel
+    } else {
+        alert("Failed to create appointment: " + result.error);
+    }
+  }
+  // ------------------
+
+  // --- Update Logic ---
+  const handleUpdate = async () => {
+    if (!selectedSlot?.appointment?.id) return;
+
+    const updates = {
+        providerId: formData.primaryProvider,
+        procedureId: formData.procedure,
+        duration: formData.length,
+        status: formData.status,
+        notes: formData.notes
+    };
+
+    const result = await appointmentAPI.updateAppointment(selectedSlot.appointment.id, updates);
+    
+    if (result.success) {
+        // Refresh Grid
+        const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+        setBookedAppointments(appointmentsData);
+        setSelectedSlot(null); // Close panel
+    } else {
+        alert("Failed to update appointment: " + result.error);
+    }
+  }
+  // ------------------
+
+  const isFormValid = () => {
+    return formData.patient && formData.patientId && formData.status && formData.procedure && formData.operatory && formData.primaryProvider && formData.length
+  }
+
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() - 1)
+    setSelectedDate(newDate)
+  }
+
+  const goToToday = () => {
+    setSelectedDate(new Date())
+  }
+
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() + 1)
+    setSelectedDate(newDate)
+  }
+
+  if (loading && providers.length === 0) {
+    return <div className="p-8 text-center text-muted-foreground">Loading scheduler...</div>
+  }
 
   return (
-    <>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Header Row - Providers */}
-        <div className="grid grid-cols-[100px_repeat(5,1fr)] border-b border-gray-200 divide-x divide-gray-200">
-          <div className="p-4 bg-gray-50 flex items-center justify-center font-semibold text-gray-500 text-sm">
-            Time
-          </div>
-          {providers.map((provider) => (
-            <div key={provider.id} className="p-4 bg-gray-50 text-center">
-              <h3 className="font-bold text-gray-800">{provider.name}</h3>
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{provider.role}</span>
+    <div className="flex h-[calc(100vh-120px)] gap-6">
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold">
+              {selectedDate.toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToPreviousDay}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent">
+                    <CalendarIcon className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarView value={selectedDate} onChange={setSelectedDate} highlightToday={false} />
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" size="icon" className="h-8 w-8 bg-transparent" onClick={goToNextDay}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
-          ))}
+          </div>
+          <Button onClick={handleNewAppointment}>New Appointment</Button>
         </div>
 
-        {/* Grid Body */}
-        <div className="grid grid-cols-[100px_repeat(5,1fr)] divide-x divide-gray-200 relative">
-          {/* Time Column */}
-          <div className="divide-y divide-gray-200">
-            {timeSlots.map((time) => (
-              <div key={time} className="h-32 p-2 text-xs font-medium text-gray-500 text-right pr-4 pt-4 relative">
-                {time}
-                <div className="absolute top-0 right-0 w-2 h-[1px] bg-gray-200"></div>
+        <div className="flex-1 border rounded-2xl overflow-auto bg-white">
+          <div className="grid min-w-[800px]" style={{ gridTemplateColumns: `80px repeat(${providers.length}, 1fr)` }}>
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white border-b p-4"></div>
+            {providers.map((provider) => (
+              <div
+                key={provider.id}
+                className="sticky top-0 z-10 bg-white border-b border-l p-4 flex items-center gap-3"
+              >
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={provider.image || "/placeholder.svg"} />
+                  <AvatarFallback>{provider.name[0]}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium text-sm">{provider.name}</div>
+                  <div className="text-xs text-muted-foreground">{provider.role}</div>
+                </div>
               </div>
             ))}
-          </div>
 
-          {/* Provider Columns */}
-          {providers.map((provider) => (
-            <div key={provider.id} className="relative divide-y divide-gray-200/50">
-              {/* Background grid lines matching time slots */}
-              <div className="absolute inset-0 z-0 flex flex-col pointer-events-none">
-                {timeSlots.map((time) => (
-                  <div key={time} className="h-32 border-b border-gray-100 border-dashed w-full"></div>
-                ))}
-              </div>
-
-              {/* Appointments */}
-              <div className="relative z-10 w-full h-full">
-                {appointments
-                  .filter((apt) => apt.providerId === provider.id)
-                  .map((apt) => {
-                    // Calculate position based on time
-                    const startIndex = timeSlots.indexOf(apt.time)
-                    if (startIndex === -1) return null
-
-                    const top = startIndex * 128 // 128px = h-32
-                    const height = apt.duration * 128
-
-                    return (
-                      <div
-                        key={apt.id}
-                        onClick={() => setSelectedAppointment(apt)}
-                        className={cn(
-                          "absolute left-2 right-2 rounded-lg p-3 border shadow-sm transition-all hover:shadow-md cursor-pointer",
-                          apt.color,
-                        )}
-                        style={{
-                          top: `${top + 4}px`, // +4 for padding top
-                          height: `${height - 8}px`, // -8 for padding (top+bottom)
-                        }}
-                      >
-                        <div className="flex flex-col h-full gap-1">
-                          <div className="flex items-start justify-between">
-                            <span className="font-bold text-sm truncate">{apt.patientName}</span>
-                            <div className="flex gap-1">
-                              {apt.status === "checked-in" && <Check className="w-4 h-4" />}
-                              {apt.status === "needs-action" && <AlertCircle className="w-4 h-4 text-orange-600" />}
-                              <Paperclip className="w-3.5 h-3.5 opacity-50" />
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 text-xs opacity-90">
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {apt.time} ({apt.operatory})
-                            </span>
-                          </div>
-
-                          <div className="mt-auto">
-                            <div className="flex flex-wrap gap-1">
-                              {apt.procedures.map((proc, i) => (
-                                <span key={i} className="text-[10px] bg-white/50 px-1.5 py-0.5 rounded-sm font-medium">
-                                  {proc}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
+            {/* Time Slots */}
+            {hours.map((hour) => (
+              <>
+                <div
+                  key={`time-${hour}`}
+                  className="border-b p-4 text-sm text-muted-foreground text-right sticky left-0 bg-white"
+                >
+                  {hour > 12 ? `${hour - 12} PM` : hour === 12 ? "12 PM" : `${hour} AM`}
+                </div>
+                {providers.map((provider) => {
+                  const appointment = getAppointmentForSlot(provider.id, hour)
+                  return (
+                    <div
+                      key={`slot-${provider.id}-${hour}`}
+                      className={`border-b border-l min-h-[100px] p-2 relative group cursor-pointer transition-colors ${
+                        appointment ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-slate-50"
+                      }`}
+                      // UPDATED: Use the new handler instead of inline function
+                      onClick={() => handleSlotClick(provider.id, hour, appointment)}
+                    >
+                      {appointment ? (
+                        <div className="space-y-1">
+                          <div className="font-medium text-sm">{appointment.patient}</div>
+                          <div className="text-xs text-muted-foreground">{appointment.procedure}</div>
+                          <Badge variant="secondary" className="text-xs">
+                            {appointment.status}
+                          </Badge>
                         </div>
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
-          ))}
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            ))}
+          </div>
         </div>
       </div>
 
-      <AppointmentDetailsModal
-        isOpen={!!selectedAppointment}
-        onClose={() => setSelectedAppointment(null)}
-        appointment={selectedAppointment}
-      />
-    </>
+      {/* Right Panel - Appointment Details */}
+      {selectedSlot && (
+        <Card className="w-[400px] overflow-auto border-l shadow-none rounded-2xl border-y-0 border-r-0">
+          <CardContent className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-lg">
+                {selectedSlot?.appointment ? "Appointment Details" : "New Appointment"}
+              </h3>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedSlot(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {selectedSlot && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wider">Date & Time</Label>
+                <div className="flex items-center gap-2 font-medium">
+                  <CalendarIcon className="w-4 h-4 text-blue-500" />
+                  {selectedDate.toLocaleDateString()}
+                </div>
+                <div className="flex items-center gap-2 font-medium">
+                  <Clock className="w-4 h-4 text-blue-500" />
+                  {selectedSlot.time > 12
+                    ? `${selectedSlot.time - 12}:00 PM`
+                    : selectedSlot.time === 12
+                      ? "12:00 PM"
+                      : `${selectedSlot.time}:00 AM`}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Patient <span className="text-red-500">*</span></Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search patient..."
+                    value={selectedSlot.appointment?.patient || formData.patient}
+                    onChange={(e) => handlePatientSearch(e.target.value)}
+                    disabled={!!selectedSlot.appointment} // Keep Patient locked for edits to avoid confusion
+                  />
+                  {/* Search Results Dropdown */}
+                  {!selectedSlot.appointment && patientSearchResults.length > 0 && (
+                      <div className="absolute z-50 w-full bg-white border rounded-md shadow-lg mt-1 max-h-40 overflow-auto">
+                          {patientSearchResults.map(p => (
+                              <div 
+                                  key={p.id} 
+                                  className="p-2 hover:bg-slate-100 cursor-pointer text-sm"
+                                  onClick={() => selectPatient(p)}
+                              >
+                                  {p.name}
+                              </div>
+                          ))}
+                      </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={formData.status} // Use formData directly
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                    <SelectItem value="ONGOING">On-going</SelectItem>
+                    <SelectItem value="COMPLETED">Complete</SelectItem>
+                    <SelectItem value="MISSED">Missed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Procedures <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={formData.procedure} // Use formData directly
+                  onValueChange={(value) => setFormData({ ...formData, procedure: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select procedure" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {procedures.length > 0 ? (
+                      procedures.map((proc) => (
+                        <SelectItem key={proc.id} value={proc.id.toString()}>{proc.name}</SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="0" disabled>No procedures found</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Operatory <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={formData.operatory} // Use formData directly
+                  onValueChange={(value) => setFormData({ ...formData, operatory: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Room 101">Room 101</SelectItem>
+                    <SelectItem value="Room 102">Room 102</SelectItem>
+                    <SelectItem value="Room 103">Room 103</SelectItem>
+                    <SelectItem value="Room 104">Room 104</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Primary Provider <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={formData.primaryProvider} // Use formData directly
+                  onValueChange={(value) => setFormData({ ...formData, primaryProvider: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id.toString()}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Additional Provider (Optional)</Label>
+                <Select 
+                  value={formData.additionalProvider}
+                  onValueChange={(value) => setFormData({ ...formData, additionalProvider: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select additional provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id.toString()}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Length (minutes) <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={formData.length} // Use formData directly
+                  onValueChange={(value) => setFormData({ ...formData, length: value })}
+                  // Removed disabled prop
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select duration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="45">45 minutes</SelectItem>
+                    <SelectItem value="60">60 minutes</SelectItem>
+                    <SelectItem value="90">90 minutes</SelectItem>
+                    <SelectItem value="120">120 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea 
+                  placeholder="Add appointment notes..." 
+                  rows={3}
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  // Removed disabled prop
+                />
+              </div>
+
+              <div className="pt-4 flex gap-2">
+                {selectedSlot.appointment ? (
+                  <>
+                    <Button className="w-full bg-blue-500" onClick={handleUpdate}>Update</Button>
+                    <Button variant="destructive" className="w-full">
+                      Cancel Appointment
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="w-full" disabled={!isFormValid()} onClick={handleSave}>Save</Button>
+                    <Button variant="outline" className="w-full bg-transparent" onClick={() => setSelectedSlot(null)}>
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   )
 }

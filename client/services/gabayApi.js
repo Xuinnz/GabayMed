@@ -1,10 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import { Session } from './session'; // Import Session Service
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Helper to get env vars in both Vite (Frontend) and Node (Test Script)
+const getEnv = (key) => {
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env[key]; // Vite
+  }
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key]; // Node.js / Jest
+  }
+  return '';
+};
+
+// Initialize Supabase
+// NOTE: In Vite, variables must start with VITE_
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('SUPABASE_ANON_KEY');
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("🚨 Supabase keys are missing! Check your .env file.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // TODO: Replace with your Vercel URL (e.g., 'https://gabay-backend.vercel.app/api')
 // Use 'http://localhost:3000/api' if testing locally with 'vercel dev'
@@ -174,38 +191,63 @@ export const GabayAPI = {
       throw error;
     }
   },
-
-  async getDashboardStats(facilityID){
+  //GET Dashboard
+  async getDashboardStats(){ // Removed facilityID param
+    const facilityID = Session.getFacilityId(); // Get from Session
     const today = new Date().toISOString().split('T')[0];
+    const start = `${today}T00:00:00`;
+    const end = `${today}T23:59:59`;
 
     try{
-        const [patients, appointments, staff, income]  = await Promise.all([
-            //Number of Appointments
-            supabase.from('appointments').select('*', {count: 'exact', head: true}).eq('facility_id', facilityID),
-            //Number of staffs
+        const [appointments, staff, income, patients]  = await Promise.all([
+            // 1. Number of Appointments TODAY
+            supabase
+                .from('appointments')
+                .select('*', {count: 'exact', head: true})
+                .eq('facility_id', facilityID)
+                .gte('appointment_date', start)
+                .lte('appointment_date', end),
+
+            // 2. Number of staffs
             supabase.from('providers').select('*', {count: "exact", head: true}).eq('facility_id', facilityID),
-            //Total Income
-            supabase.from('ledger').select('total_bill_amount').eq('payment_status', 'PAID').eq('appointments.facility_id', facilityID),
-            //total patients
-            supabase.from('appointments').select('patient_id', {count: 'exact', head: true}).eq('facility_id', facilityID)
+            
+            // 3. Total Income (TODAY ONLY)
+            // We use !inner to ensure we only get ledger entries linked to appointments at this facility
+            supabase
+                .from('ledger')
+                .select('total_bill_amount, patients!inner(facility_id)')
+                .eq('payment_status', 'PAID')
+                .eq('patients.facility_id', facilityID)
+                .gte('date', start) // Filter for today start
+                .lte('date', end),  // Filter for today end
+
+            // 4. Total Patients (From Patients Table)
+            supabase
+                .from('patients')
+                .select('*', {count: 'exact', head: true})
+                .eq('facility_id', facilityID)
         ]);
+
+        // Calculate Income: Convert negative payment amounts to positive
         const totalIncome = income.data 
-        ? income.data.reduce((sum, row) => sum + (row.total_bill_amount || 0), 0): 0;
+        ? income.data.reduce((sum, row) => sum + Math.abs(row.total_bill_amount || 0), 0): 0;
 
         return {
-        totalPatients: patients.count || 0,
-        appointmentsToday: appointments.count || 0,
-        staffPresent: staff.count || 0,
-        totalIncome: totalIncome
+            totalPatients: patients.count || 0,
+            appointmentsToday: appointments.count || 0,
+            staffPresent: staff.count || 0,
+            totalIncome: totalIncome
         };
 
-    } catch{
+    } catch (error) {
         console.error("Stats Error:", error);
         return { totalPatients: 0, appointmentsToday: 0, staffPresent: 0, totalIncome: 0 };
     }
   },
 
-  async getFacilitySchedule(facilityId, dateString) {
+  //GET All Schedule
+  async getFacilitySchedule(dateString) { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
     //get facility schedule for the day
     const start = `${dateString}T00:00:00`;
     const end = `${dateString}T23:59:59`;
@@ -220,12 +262,211 @@ export const GabayAPI = {
         procedures ( name ),
         providers ( name, specialization )
       `)
-      .eq('facility_id', facilityId) // <--- CRITICAL FILTER
+      .eq('facility_id', facilityId) 
       .gte('appointment_date', start)
       .lte('appointment_date', end)
       .order('appointment_date', { ascending: true });
 
     if (error) throw error;
     return data;
+  },
+
+  //GET Upcoming Schedule
+  async getUpcomingSchedule(dateString) { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
+    
+    const startDate = new Date(dateString);
+    const futureDate = new Date(startDate);
+    futureDate.setDate(startDate.getDate() + 5); 
+
+    const start = `${dateString}T00:00:00`;
+    const end = `${futureDate.toISOString().split('T')[0]}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('appointment_date')
+      .eq('facility_id', facilityId)
+      .gte('appointment_date', start)
+      .lte('appointment_date', end);
+
+    if (error) throw error;
+    const result = [];
+    
+    // Loop through the next 5 days to ensure even days with 0 appointments are returned
+    for (let i = 0; i < 5; i++) {
+        const current = new Date(startDate);
+        current.setDate(startDate.getDate() + i);
+        
+        const dateKey = current.toISOString().split('T')[0]; 
+        
+        const count = data.filter(appt => 
+            appt.appointment_date.startsWith(dateKey)
+        ).length;
+
+        result.push({
+            date: dateKey,
+            count: count,
+            day: current.toLocaleDateString('en-US', { weekday: 'short' })
+        });
+    }
+
+    return result;
+  },
+
+  //GET Patients
+  async getPatients() { // Removed facilityId param
+    const facilityId = Session.getFacilityId(); // Get from Session
+    try {
+      // 1. Fetch ALL patients linked to this facility
+      // REMOVED: .eq('appointments.status', 'COMPLETED') to prevent hiding patients
+      const { data, error } = await supabase
+        .from('patients')
+        .select(`
+          patient_id,
+          full_name,
+          date_of_birth,
+          gender,
+          appointments (
+            appointment_date,
+            status
+          )
+        `)
+        .eq('facility_id', facilityId);
+
+      if (error) throw error;
+
+      // 2. Process data
+      const patientsList = data.map(patient => {
+        
+        // A. Calculate Age
+        let age = 'N/A';
+        if (patient.date_of_birth) {
+            const dob = new Date(patient.date_of_birth);
+            const diff_ms = Date.now() - dob.getTime();
+            const age_dt = new Date(diff_ms);
+            age = Math.abs(age_dt.getUTCFullYear() - 1970);
+        }
+
+        // B. Find Latest Visit Date (Client-side filtering)
+        let lastVisit = 'N/A';
+        if (patient.appointments && patient.appointments.length > 0) {
+            // Filter for COMPLETED appointments here in JS
+            const completedAppts = patient.appointments.filter(a => a.status === 'COMPLETED');
+            
+            if (completedAppts.length > 0) {
+                const sortedAppts = completedAppts.sort((a, b) => 
+                    new Date(b.appointment_date) - new Date(a.appointment_date)
+                );
+                lastVisit = sortedAppts[0].appointment_date;
+            }
+        }
+
+        return {
+          user_id: patient.patient_id,
+          full_name: patient.full_name || 'Unknown',
+          age: age,
+          gender: patient.gender || 'N/A',
+          date_of_birth: patient.date_of_birth,
+          visit_date: lastVisit 
+        };
+      });
+
+      return {
+        count: patientsList.length,
+        patients: patientsList
+      };
+
+    } catch (error) {
+      console.error("Get Patients Error:", error);
+      return { count: 0, patients: [] };
+    }
+  },
+
+  // GET Insurance Carriers
+  async getCarriers() {
+    try {
+      // We select carrier details and the actual insurance plans data
+      const { data, error } = await supabase
+        .from('carrier')
+        .select(`
+          carrier_id,
+          name,
+          street_address,
+          status,
+          type,
+          insurance_plans (
+            plan_id,
+            plan_name
+          )
+        `);
+
+      if (error) throw error;
+
+      // Transform the data to a flat structure for the UI
+      return data.map(carrier => ({
+        id: carrier.carrier_id,
+        name: carrier.name,
+        address: carrier.street_address,
+        status: carrier.status,
+        type: carrier.type,
+        // 1. The Count (Calculated from the array length)
+        plans: carrier.insurance_plans?.length || 0,
+        // 2. The Actual Data (Array of plans)
+        insurance_plans: carrier.insurance_plans || []
+      }));
+
+    } catch (error) {
+      console.error("Get Carriers Error:", error);
+      return [];
+    }
+  },
+
+  // GET Insurance Plans for Dropdown
+  async getInsurancePlans() {
+    try {
+      const { data, error } = await supabase
+        .from('insurance_plans')
+        .select(`
+          plan_id,
+          plan_name,
+          carrier ( name )
+        `);
+
+      if (error) throw error;
+
+      return data.map(plan => ({
+        id: plan.plan_id,
+        name: plan.plan_name,
+        carrier: plan.carrier?.name
+      }));
+
+    } catch (error) {
+      console.error("Get Plans Error:", error);
+      return [];
+    }
+  },
+
+  // ADD Patient Insurance
+  async addPatientInsurance(patientId, planData) {
+    try {
+      const { error } = await supabase
+        .from('patient_insurance')
+        .insert([{
+          patient_id: patientId,
+          plan_id: planData.planId,
+          subscriber_id: planData.subscriberId,
+          coverage_type: planData.coverageType,
+          coverage_start_date: planData.coverageStartDate,
+          coverage_end_date: planData.coverageEndDate,
+          notes: planData.notes,
+          status: 'active'
+        }]);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error("Add Insurance Error:", error.message);
+      return { success: false, error: error.message };
+    }
   }
 };

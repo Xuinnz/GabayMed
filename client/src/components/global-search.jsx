@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useRef, useEffect } from "react"
 import { Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -61,13 +59,16 @@ export function GlobalSearch() {
   }, [isExpanded])
 
   // Group results by category
-  const groupedResults = filteredResults.reduce((acc, result) => {
-    if (!acc[result.category]) {
-      acc[result.category] = []
-    }
-    acc[result.category].push(result)
-    return acc
-  }, {})
+  const groupedResults = filteredResults.reduce(
+    (acc, result) => {
+      if (!acc[result.category]) {
+        acc[result.category] = []
+      }
+      acc[result.category].push(result)
+      return acc
+    },
+    {},
+  )
 
   return (
     <div ref={containerRef} className="relative flex items-center">
@@ -79,12 +80,12 @@ export function GlobalSearch() {
       >
         <div
           className={cn(
-            "absolute inset-0 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer transition-opacity duration-200",
+            "absolute inset-0 bg-[#F4F4F4] rounded-full flex items-center justify-center cursor-pointer transition-opacity duration-200",
             isExpanded ? "opacity-0 pointer-events-none" : "opacity-100",
           )}
           onClick={() => setIsExpanded(true)}
         >
-          <Search className="w-4 h-4 text-gray-500" />
+          <Search className="w-5 h-5 text-gray-500" />
         </div>
 
         <Input
