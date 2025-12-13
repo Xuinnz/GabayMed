@@ -1,0 +1,153 @@
+// 1. Loaders
+import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+
+// 2. Text Splitter
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+
+// 3. OpenAI Embeddings
+import { OpenAIEmbeddings } from "@langchain/openai";
+
+// 4. Standard Utilities
+import { createClient } from "@supabase/supabase-js";
+import { OpenAI } from "openai";
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config();
+
+// 1. Setup Clients
+const supabase = createClient(
+  process.env.SUPABASE_URL, 
+  process.env.SUPABASE_SERVICE_ROLE_KEY, 
+  { auth: { persistSession: false } }
+);
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const embeddingsModel = new OpenAIEmbeddings({ 
+    modelName: "text-embedding-3-small",
+    openAIApiKey: process.env.OPENAI_API_KEY,
+    batchSize: 512, 
+});
+
+// Helper: Smart Classifier
+async function classifyDocument(fullText) {
+    const start = fullText.substring(0, 1000);
+    const middleIndex = Math.floor(fullText.length / 2);
+    const middle = fullText.substring(middleIndex, middleIndex + 1000);
+    const representativeSample = `START:\n${start}\n...\nMIDDLE:\n${middle}`;
+
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+            { role: "system", content: "You are a medical librarian. Classify this text into ONE category (e.g., Cardiology, Nephrology, Infectious Disease, Pediatrics, General). Return ONLY the category name." },
+            { role: "user", content: representativeSample }
+        ],
+        temperature: 0
+    });
+    return response.choices[0].message.content || "General Medicine";
+}
+
+// Helper: Idempotency
+async function cleanOldRecords(sourcePath) {
+    const fileName = path.basename(sourcePath);
+    const { error } = await supabase
+        .from('medical_guidelines')
+        .delete()
+        .ilike('metadata->>source', `%${fileName}`);
+
+    if (error) console.error(`   ⚠️ Error cleaning old records for ${fileName}:`, error.message);
+    else console.log(`   🧹 Cleaned old records for: ${fileName}`);
+}
+
+async function runProductionPipeline() {
+    console.log("🏭 Starting Production ETL Pipeline (JS Version)...");
+
+    const loader = new DirectoryLoader(
+        "./doh_guidelines",
+        { ".pdf": (path) => new PDFLoader(path) }
+    );
+    
+    try {
+        const rawPages = await loader.load();
+        console.log(`📚 Loaded ${rawPages.length} total pages.`);
+
+        // STEP 1: GROUP PAGES BY FILE
+        const docsByFile = {};
+        
+        for (const page of rawPages) {
+            const source = page.metadata.source;
+            if (!docsByFile[source]) {
+                docsByFile[source] = [];
+            }
+            docsByFile[source].push(page);
+        }
+
+        const uniqueFiles = Object.keys(docsByFile);
+        console.log(`📂 Identified ${uniqueFiles.length} unique documents.`);
+
+        // STEP 2: PROCESS PER FILE
+        for (const sourcePath of uniqueFiles) {
+            const fileName = path.basename(sourcePath);
+            const filePages = docsByFile[sourcePath]; 
+            
+            console.log(`\nProcessing: ${fileName} (${filePages.length} pages)`);
+
+            // A. CLEAN SLATE
+            await cleanOldRecords(sourcePath);
+
+            // B. CLASSIFY
+            const fullText = filePages.map(p => p.pageContent).join('\n');
+            const category = await classifyDocument(fullText);
+            console.log(`   🏷️  Classified as: ${category}`);
+
+            // C. SPLIT
+            const splitter = new RecursiveCharacterTextSplitter({
+                chunkSize: 1000,
+                chunkOverlap: 200,
+            });
+            const chunks = await splitter.splitDocuments(filePages);
+            console.log(`   🔪 Sliced into ${chunks.length} chunks.`);
+
+            // D. BATCH EMBED & INSERT
+            const BATCH_SIZE = 20;
+            
+            for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+                const batch = chunks.slice(i, i + BATCH_SIZE);
+                const batchTexts = batch.map(c => c.pageContent);
+                
+                try {
+                    const batchVectors = await embeddingsModel.embedDocuments(batchTexts);
+
+                    const rowsToInsert = batch.map((chunk, idx) => ({
+                        content: chunk.pageContent,
+                        metadata: {
+                            source: fileName,
+                            page: chunk.metadata.loc.pageNumber,
+                        },
+                        category: category,
+                        embedding: batchVectors[idx]
+                    }));
+
+                    const { error } = await supabase
+                        .from('medical_guidelines')
+                        .insert(rowsToInsert);
+
+                    if (error) throw error;
+                    process.stdout.write("."); 
+                } catch (err) {
+                    console.error(`   ❌ Batch Error:`, err);
+                }
+            }
+            console.log(`\n   ✅ Finished: ${fileName}`);
+        }
+
+    } catch (e) {
+        console.error("Critical Pipeline Error:", e);
+    }
+
+    console.log("\n🎉 Production Ingestion Complete!");
+}
+
+runProductionPipeline();
