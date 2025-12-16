@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Header } from "@/components/header"
-import { messagesAPI } from "../../services/messages"
+//import { messagesAPI } from "../../services/messages"
 
 export function Messages() {
   const [activeConversationId, setActiveConversationId] = useState(null)

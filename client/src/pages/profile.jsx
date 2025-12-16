@@ -6,7 +6,7 @@ import { Building2, Mail, Phone, MapPin, Globe, Clock } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { profileAPI } from "../../services/profile" // Import API
+//import { profileAPI } from "../../services/profile" // Import API
 
 export default function ProfilePage() {
   const [locationInfo, setLocationInfo] = useState({

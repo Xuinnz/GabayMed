@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarView } from "@/components/calendar-view" 
 import { format } from "date-fns"
-import { appointmentAPI } from "../../services/appointment"
+//import { appointmentAPI } from "../../services/appointment"
 
 const hours = Array.from({ length: 10 }, (_, i) => i + 8) // 8 AM to 5 PM
 

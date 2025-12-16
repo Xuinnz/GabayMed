@@ -1,7 +1,28 @@
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Clock } from "lucide-react"
+import { appointmentsAPI } from "../../services/appointments"
 
-export function AppointmentsList({ appointments = [], loading = false }) {
+export function AppointmentsList() {
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        // Explicitly pass today's date to the service
+        const today = new Date();
+        const data = await appointmentsAPI.getAppointments(today)
+        setAppointments(data)
+      } catch (error) {
+        console.error("Failed to fetch appointments:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAppointments()
+  }, [])
   
   return (
     <Card className="p-6">
@@ -18,12 +39,22 @@ export function AppointmentsList({ appointments = [], loading = false }) {
               hour: '2-digit', 
               minute: '2-digit' 
             });
-            const patientName = apt.patients?.full_name || "Unknown Patient";
+            
+            // Handle nested user data for patients
+            const patientUser = apt.patients?.users;
+            const patientName = patientUser 
+              ? `${patientUser.first_name} ${patientUser.last_name}` 
+              : "Unknown Patient";
+            
             const procedureName = apt.procedures?.name || "General Consultation";
-            const doctorName = apt.providers?.name; // Using doctor name instead of Room
+            
+            // Handle provider data
+            const providerName = apt.providers 
+              ? `Dr. ${apt.providers.first_name} ${apt.providers.last_name}`
+              : null;
 
             return (
-              <div key={apt.appointment_id} className="flex gap-3">
+              <div key={apt.id} className="flex gap-3">
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[#66BAFF]" />
                   <div className="w-0.5 flex-1 bg-[#66BAFF]" />
@@ -39,8 +70,8 @@ export function AppointmentsList({ appointments = [], loading = false }) {
                     <span className="font-bold text-sm text-[#4B6368]">{time}</span>
                   </div>
                   <div className="text-sm font-semibold text-[#4B6368] mb-1">{patientName}</div>
-                  {doctorName && (
-                    <div className="text-xs text-[#4B6368]/70 mb-2">{doctorName}</div>
+                  {providerName && (
+                    <div className="text-xs text-[#4B6368]/70 mb-2">{providerName}</div>
                   )}
                   <div className="text-xs text-[#4B6368]/60">
                     {procedureName}

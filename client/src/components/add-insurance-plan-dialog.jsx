@@ -9,7 +9,7 @@ import { CalendarView } from "@/components/calendar-view"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
-import { GabayAPI } from "../../services/gabayApi" // Import GabayAPI
+//import { GabayAPI } from "../../services/gabayApi" // Import GabayAPI
 
 export function AddInsurancePlanDialog({ open, onOpenChange, patientId, onPlanAdded }) {
   const [formData, setFormData] = useState({

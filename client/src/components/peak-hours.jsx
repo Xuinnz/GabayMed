@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
-import { appointmentAPI } from "../../services/appointment" // Import API
+//import { appointmentAPI } from "../../services/appointment" // Import API
 
 export function PeakHours() {
   const [chartData, setChartData] = useState([])

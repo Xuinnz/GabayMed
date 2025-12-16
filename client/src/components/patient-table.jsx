@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, Plus, Calendar, Eye, ArrowLeft } from "lucide-react"
 import { AddPatientDialog } from "@/components/add-patient-dialog"
-import { PatientProfile } from "@/pages/patient-profile"
+//import { PatientProfile } from "@/pages/patient-profile"
 
 export function PatientsTable({ patients = [], loading = false }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { CarrierManagement } from "@/components/carrier-management"
-import { GabayAPI } from "../../services/gabayApi"
+//import { GabayAPI } from "../../services/gabayApi"
 
 export default function CarriersPage() {
   const [carriers, setCarriers] = useState([])

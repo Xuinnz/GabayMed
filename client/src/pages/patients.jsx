@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Header } from "@/components/header"
 import { DateDisplay } from "@/components/date-display"
 import { PatientsTable } from "@/components/patient-table"
-import { GabayAPI } from "../../services/gabayApi"
+//import { GabayAPI } from "../../services/gabayApi"
 
 // TODO: Replace with the logged-in user's facility ID
 
