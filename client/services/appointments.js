@@ -10,6 +10,23 @@ const getLocalDateStr = (date) => {
 
 export const appointmentsAPI = {
     //1. GET /appointments
+    /**
+     * Returns: Array of raw appointment objects
+     * [
+     *   {
+     *     id: UUID,
+     *     patient_id: UUID,
+     *     provider_id: UUID,
+     *     procedure_id: UUID,
+     *     appointment_date: TIMESTAMPTZ,
+     *     reason_for_visit: TEXT,
+     *     status: 'pending' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' | 'missed',
+     *     duration_minutes: INT,
+     *     notes: TEXT,
+     *     created_at: TIMESTAMPTZ
+     *   }, ...
+     * ]
+     */
     async getAppoinments(){
         try {
             const { data, error } =  await supabase
@@ -24,8 +41,34 @@ export const appointmentsAPI = {
         }
     },
     //2. GET /appointments/:date
+    /**
+     * Returns: Array of detailed appointment objects with joined relations
+     * [
+     *   {
+     *     id: UUID,
+     *     appointment_date: TIMESTAMPTZ,
+     *     status: 'pending' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' | 'missed',
+     *     duration: INT, 
+     *     notes: TEXT,
+     *     patients: {
+     *       id: UUID,
+     *       users: {
+     *         first_name: TEXT,
+     *         last_name: TEXT
+     *       }
+     *     },
+     *     procedures: {
+     *       id: UUID,
+     *       name: TEXT
+     *     },
+     *     providers: {
+     *       first_name: TEXT,
+     *       last_name: TEXT
+     *     }
+     *   }, ...
+     * ]
+     */
     async getAppointments(dateInput = null){
-        // Use the passed date, or default to today if null
         const dateStr = dateInput ? getLocalDateStr(dateInput) : getLocalDateStr(new Date());
         
         const start = `${dateStr}T00:00:00`;
@@ -58,7 +101,16 @@ export const appointmentsAPI = {
         }
     },
     // 3. GET /appointments/graph
-    async getAppointmentsGraph(dateInput = null) { // Fixed typo: dateInpput
+    /**
+     * Returns: Array of hourly visit counts for the graph
+     * [
+     *   { time: "8 AM", visits: 0 },
+     *   { time: "9 AM", visits: 2 },
+     *   ...
+     *   { time: "5 PM", visits: 1 }
+     * ]
+     */
+    async getAppointmentsGraph(dateInput = null) { 
         const date = dateInput ? getLocalDateStr(dateInput) : getLocalDateStr(new Date());
         const start =  `${date}T00:00:00`;
         const end =  `${date}T23:59:59`;
@@ -105,6 +157,9 @@ export const appointmentsAPI = {
         }
     },
     // 4. GET /appointments/peak
+    /**
+     * Returns: String representing the peak hour (e.g., "10 AM") or "-" if no data
+     */
     async getAppointmentsPeak(date){
         const data = await this.getAppointmentsGraph(date);
         if (!data || data.length === 0) return '-';

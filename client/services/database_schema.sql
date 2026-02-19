@@ -429,3 +429,202 @@ $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE appointments;
 ALTER PUBLICATION supabase_realtime ADD TABLE ledgers;
+
+
+-- 1. ENABLE RLS ON ALL TABLES
+ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE triage_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE triage_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_plans ENABLE ROW LEVEL SECURITY;
+
+-- 2. CREATE POLICIES (Examples)
+-- APPOINTMENTS: "I can see appointments for my patient profiles"
+CREATE POLICY "Users view own appointments" ON appointments
+FOR SELECT USING (
+  patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
+);
+
+CREATE POLICY "Users view own triage sessions" 
+ON triage_sessions FOR SELECT 
+USING (auth.uid() = user_id);
+
+-- Policy: Users can create their own sessions
+CREATE POLICY "Users insert own triage sessions" 
+ON triage_sessions FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users view own triage messages" 
+ON triage_messages FOR SELECT 
+USING (
+  session_id IN (
+    SELECT id FROM triage_sessions WHERE user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users insert own triage messages" 
+ON triage_messages FOR INSERT 
+WITH CHECK (
+  session_id IN (
+    SELECT id FROM triage_sessions WHERE user_id = auth.uid()
+  )
+);
+
+-- Policy 1: THE PATIENT
+-- "I can see messages where I am the patient"
+CREATE POLICY "Patients view own messages" 
+ON messages FOR SELECT 
+USING (
+  patient_id IN (
+    SELECT id FROM patients WHERE user_id = auth.uid()
+  )
+);
+
+-- "I can send messages as myself"
+CREATE POLICY "Patients insert messages" 
+ON messages FOR INSERT 
+WITH CHECK (
+  patient_id IN (
+    SELECT id FROM patients WHERE user_id = auth.uid()
+  ) 
+  AND sender_type = 'user' -- Force sender_type to be correct
+);
+
+-- Policy 2: THE FACILITY STAFF
+-- "I can see messages if I work at the facility linked to this patient"
+CREATE POLICY "Staff view facility messages" 
+ON messages FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 FROM staff s
+    JOIN patients p ON p.facility_id = s.facility_id
+    WHERE s.id = auth.uid() -- The logged-in user is Staff
+    AND p.id = messages.patient_id -- The patient belongs to their facility
+  )
+);
+
+-- "I can send messages if I work at the facility"
+CREATE POLICY "Staff insert facility messages" 
+ON messages FOR INSERT 
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM staff s
+    JOIN patients p ON p.facility_id = s.facility_id
+    WHERE s.id = auth.uid()
+    AND p.id = messages.patient_id
+  )
+  AND sender_type = 'facility'
+);
+
+-- 3. PUBLIC READ POLICIES (For Directories)
+ALTER TABLE facilities ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public view facilities" ON facilities FOR SELECT USING (true);
+
+ALTER TABLE specializations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public view specs" ON specializations FOR SELECT USING (true);
+
+
+-- ==============================================================================
+-- 3. OPERATIONAL & REFERENCE DATA
+-- Rule: Public Read (Transparency), Facility-Staff Write (Management)
+-- ==============================================================================
+
+-- A. PROCEDURES (Global Standard List)
+-- ------------------------------------------------------------------------------
+ALTER TABLE procedures ENABLE ROW LEVEL SECURITY;
+
+-- Read: Public (Used for searching)
+CREATE POLICY "Public view procedures" ON procedures FOR SELECT USING (true);
+
+-- Write: Restricted (Only Admins/Service Role can change the standard DOH list)
+-- No INSERT/UPDATE policy = Service Role Only
+
+
+-- B. STAFF (Internal Profiles)
+-- ------------------------------------------------------------------------------
+ALTER TABLE staff ENABLE ROW LEVEL SECURITY;
+
+-- Read: Staff can view themselves
+CREATE POLICY "Staff view own profile" ON staff 
+FOR SELECT USING (auth.uid() = id);
+
+-- Write: Service Role Only (Usually created during Invite/Signup flow)
+
+
+-- C. FACILITY SERVICES (The "Department" List)
+-- ------------------------------------------------------------------------------
+ALTER TABLE facility_services ENABLE ROW LEVEL SECURITY;
+
+-- Read: Public (Used by Resolver to find "Nephrology")
+CREATE POLICY "Public view facility services" ON facility_services FOR SELECT USING (true);
+
+-- Write: Staff can edit services ONLY at their own facility
+CREATE POLICY "Staff manage own facility services" ON facility_services
+FOR ALL -- (Insert, Update, Delete)
+USING (
+  EXISTS (
+    SELECT 1 FROM staff s 
+    WHERE s.id = auth.uid() 
+    AND s.facility_id = facility_services.facility_id
+  )
+);
+
+
+-- D. PROVIDERS (Doctors)
+-- ------------------------------------------------------------------------------
+ALTER TABLE providers ENABLE ROW LEVEL SECURITY;
+
+-- Read: Public (Patients see doctor profiles)
+CREATE POLICY "Public view providers" ON providers FOR SELECT USING (true);
+
+-- Write: Staff manage doctors at their facility
+-- Logic: Check if the provider is linked to a service belonging to the staff's facility
+CREATE POLICY "Staff manage own facility providers" ON providers
+FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM staff s
+    JOIN facility_services fs ON fs.facility_id = s.facility_id
+    WHERE s.id = auth.uid()
+    AND fs.id = providers.facility_service_id
+  )
+);
+
+
+-- E. FEE SCHEDULES (The Price Books)
+-- ------------------------------------------------------------------------------
+ALTER TABLE fee_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Read: Public (Needed for Price Transparency)
+CREATE POLICY "Public view fee schedules" ON fee_schedules FOR SELECT USING (true);
+
+-- Write: Staff manage their own facility's price books
+CREATE POLICY "Staff manage own fee schedules" ON fee_schedules
+FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM staff s 
+    WHERE s.id = auth.uid() 
+    AND s.facility_id = fee_schedules.facility_id
+  )
+);
+
+
+-- F. FEE SCHEDULE ITEMS (The Specific Prices)
+-- ------------------------------------------------------------------------------
+ALTER TABLE fee_schedule_items ENABLE ROW LEVEL SECURITY;
+
+-- Read: Public (Used by Resolver to calculate Net Cost)
+CREATE POLICY "Public view fee items" ON fee_schedule_items FOR SELECT USING (true);
+
+-- Write: Staff manage items within their own schedules
+CREATE POLICY "Staff manage own fee items" ON fee_schedule_items
+FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM staff s
+    JOIN fee_schedules fs ON fs.facility_id = s.facility_id
+    WHERE s.id = auth.uid()
+    AND fs.id = fee_schedule_items.schedule_id
+  )
+);

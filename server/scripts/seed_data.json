@@ -1,0 +1,200 @@
+[
+  {
+    "category": "Infectious Disease",
+    "topic": "Rabies Exposure (Mammal Bites)",
+    "symptoms_patient": "Bite or scratch from a dog, cat, or bat. Lick on broken skin. Wound is open or bleeding.",
+    "red_flags": "Bites on the head or neck, bites on hands or genitals, multiple deep bites, bite from a stray or sickly animal, animal died or disappeared.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "dog bite, cat scratch, rabies, animal bite, vaccine, shot, puppy, kitten, bat",
+    "urgency": "high"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Neurotoxic Snakebite (Cobra)",
+    "symptoms_patient": "Snakebite wound, drowsiness, weakness, drooping eyelids, difficulty swallowing or speaking.",
+    "red_flags": "Difficulty breathing, inability to open eyes, paralysis, drooling, inability to speak, coma.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "snake bite, cobra, paralysis, breathing, choking, weak, venom, poison",
+    "urgency": "emergency"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Hemotoxic Snakebite (Viper)",
+    "symptoms_patient": "Snakebite wound with severe pain, rapid swelling, bruising around the bite.",
+    "red_flags": "Vomiting blood, bleeding from gums or nose, black stools, severe belly pain, unable to pee (oliguria), fainting.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "snake bite, viper, swelling, bleeding, bruising, vomit, blood, pain",
+    "urgency": "emergency"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Marine Animal Stings (Jellyfish/Stingray)",
+    "symptoms_patient": "Sting or puncture wound while in the ocean, intense burning pain, redness, whip-like marks on skin.",
+    "red_flags": "Severe difficulty breathing, chest pain, excruciating pain unrelieved by first aid, sting from Box Jellyfish.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "jellyfish, stingray, sting, ocean, beach, burn, vinegar, hot water, sea urchin",
+    "urgency": "high"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Infected Animal Bite Wound",
+    "symptoms_patient": "Redness spreading around an old bite wound, area feels hot, pus or discharge oozing from wound, increasing pain.",
+    "red_flags": "High fever, red streaks spreading up the arm or leg, confusion, extreme weakness.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "infection, pus, redness, swelling, fever, cat bite, dog bite, hot, throbbing",
+    "urgency": "medium"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Dengue Fever (Non-Severe)",
+    "symptoms_patient": "Sudden high fever accompanied by severe headache, pain behind the eyes, muscle and joint pain, nausea, vomiting, or a rash.",
+    "red_flags": "Dehydration signs (dry mouth, not urinating), inability to drink fluids, severe weakness.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "dengue, fever, eye pain, rash, mosquito, ache, nausea, joint pain",
+    "urgency": "medium"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Severe Dengue (Warning Signs)",
+    "symptoms_patient": "Patient with fever who develops severe abdominal pain, persistent vomiting, or visible bleeding.",
+    "red_flags": "Severe stomach pain, persistent vomiting (cannot keep liquids down), rapid breathing, bleeding gums or nose, fatigue, restlessness, blood in vomit or stool, cold and clammy skin.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "dengue, bleeding, vomit, stomach pain, breathing, shock, blood, gums",
+    "urgency": "emergency"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Chikungunya",
+    "symptoms_patient": "Abrupt onset of fever with severe joint pain (often in hands and feet), joint swelling, muscle pain, headache, nausea, fatigue, and rash.",
+    "red_flags": "Joint pain so severe the patient cannot move or walk, symptoms in newborns, confusion or severe dehydration in elderly patients.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "chikungunya, joint pain, swelling, fever, arthritis, bent over, rash",
+    "urgency": "high"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Zika Virus",
+    "symptoms_patient": "Mild fever, skin rash, red eyes (conjunctivitis) without pus, muscle and joint pain, malaise, or headache.",
+    "red_flags": "Symptoms occurring during pregnancy (risk to baby), sudden weakness or paralysis in legs (Guillain-Barré syndrome signs).",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "zika, red eyes, rash, pregnancy, microcephaly, mosquito, fever",
+    "urgency": "medium"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Yellow Fever",
+    "symptoms_patient": "Fever, muscle pain (especially prominent backache), headache, loss of appetite, and nausea or vomiting.",
+    "red_flags": "Yellowing of the skin and eyes (jaundice), dark urine, abdominal pain with vomiting, bleeding from the mouth, nose, eyes, or stomach.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "yellow fever, jaundice, yellow eyes, back pain, bleeding, vomit, dark urine",
+    "urgency": "emergency"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Tuberculosis (TB) Screening",
+    "symptoms_patient": "This is for screening healthy people. No symptoms required, but ask if they have been coughing for 2 weeks or more.",
+    "red_flags": "Coughing up blood, unexplained weight loss, night sweats, close contact with someone who has active TB.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "tb, tuberculosis, cough, screening, chest x-ray, ppd, skin test",
+    "urgency": "medium"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Human Immunodeficiency Virus (HIV) Screening",
+    "symptoms_patient": "This is for screening healthy people. Recommended for all adults or those with specific risk factors.",
+    "red_flags": "Unexplained chronic diarrhea, recurring fevers, rapid weight loss, white spots in mouth (thrush), history of unprotected high-risk sexual contact.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "hiv, aids, screening, sexually transmitted, std, virus, immunodeficiency",
+    "urgency": "low"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Hepatitis B Screening",
+    "symptoms_patient": "This is for screening healthy adults, especially those pregnant or at higher risk (e.g., healthcare workers, dialysis patients).",
+    "red_flags": "Yellowing of skin or eyes (jaundice), dark urine, pale stools, severe abdominal pain, abdominal swelling.",
+    "suggested_specialist": "gastroenterology",
+    "keywords": "hepatitis b, liver, jaundice, screening, hepb, virus, std",
+    "urgency": "low"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Syphilis Screening",
+    "symptoms_patient": "This is for screening healthy adults, particularly pregnant women and high-risk individuals.",
+    "red_flags": "Painless sores (chancre) on genitals or mouth, rash on palms or soles, patchy hair loss, vision changes.",
+    "suggested_specialist": "infectious-disease",
+    "keywords": "syphilis, std, chancre, screening, rash, sexually transmitted, vdrl",
+    "urgency": "low"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Influenza Vaccination",
+    "symptoms_patient": "Preventive measure. Recommended yearly for all adults, especially elderly and those with chronic conditions.",
+    "red_flags": "High fever with difficulty breathing, chest pain, bluish lips, seizures, severe dehydration.",
+    "suggested_specialist": "primary-care",
+    "keywords": "flu, influenza, vaccine, shot, prevention, yearly, cough, fever",
+    "urgency": "low"
+  },
+  {
+    "category": "Infectious Disease",
+    "topic": "Pneumococcal Vaccination",
+    "symptoms_patient": "Preventive measure. Recommended for adults aged 50 and above, or younger adults with chronic illnesses.",
+    "red_flags": "High fever with shaking chills, coughing up rusty or green phlegm, sharp chest pain when breathing deeply, confusion.",
+    "suggested_specialist": "primary-care",
+    "keywords": "pneumonia, vaccine, shot, pneumococcal, elderly, prevention, lungs",
+    "urgency": "low"
+  },
+  {
+    "category": "Nephrology",
+    "topic": "Acute Uncomplicated Cystitis (Bladder Infection)",
+    "symptoms_patient": "Painful or burning sensation when urinating, frequent urge to urinate but passing small amounts, lower abdominal or pelvic pain, cloudy or strong-smelling urine.",
+    "red_flags": "Visible blood in urine (gross hematuria), high fever with chills, severe back or side pain (signs of kidney involvement), inability to urinate.",
+    "suggested_specialist": "nephrology",
+    "keywords": "uti, bladder infection, pee pain, burning, frequency, cloudy urine, dysuria",
+    "urgency": "medium"
+  },
+  {
+    "category": "Emergency Medicine",
+    "topic": "Acute Pyelonephritis (Kidney Infection)",
+    "symptoms_patient": "High fever (>38°C), shaking chills, pain in the upper back or side (flank pain), nausea, and vomiting, often combined with painful urination.",
+    "red_flags": "Persistent vomiting (cannot keep fluids down/oral intolerance), confusion or lethargy, severe dehydration (dizziness, dry mouth), signs of shock (cold/clammy skin, rapid heartbeat), pregnancy with fever.",
+    "suggested_specialist": "emergency-medicine",
+    "keywords": "kidney infection, back pain, flank pain, fever, vomiting, chills, pyelonephritis",
+    "urgency": "emergency"
+  },
+  {
+    "category": "Pediatrics",
+    "topic": "UTI in Children and Infants",
+    "symptoms_patient": "Unexplained fever (especially in infants), strong-smelling urine, irritability, crying during urination, new bedwetting accidents in potty-trained children, vomiting, or poor feeding.",
+    "red_flags": "High fever in an infant under 3 months, lethargy (very sleepy/hard to wake), severe dehydration (sunken soft spot, no tears), severe abdominal pain.",
+    "suggested_specialist": "pediatrics",
+    "keywords": "baby fever, smelly pee, bedwetting, crying pee, child uti, infant fever",
+    "urgency": "high"
+  },
+  {
+    "category": "Urology",
+    "topic": "Complicated UTI (Men or Structural Issues)",
+    "symptoms_patient": "Painful urination in men, difficulty starting urine flow, weak stream, dribbling, frequent urination at night, or pelvic/perineal pain.",
+    "red_flags": "Complete inability to urinate (urinary retention), severe pain in the testicles or perineum, high fever with chills, catheter blockage.",
+    "suggested_specialist": "urology",
+    "keywords": "male uti, weak stream, prostate, retention, painful pee man, catheter",
+    "urgency": "high"
+  },
+  {
+    "category": "Nephrology",
+    "topic": "Recurrent UTI (Chronic)",
+    "symptoms_patient": "Repeated episodes (2 or more in 6 months, or 3 in a year) of burning urination, urgency, and frequency that typically resolve with treatment but return.",
+    "red_flags": "Symptoms returning immediately after antibiotics finish, persistent visible blood in urine, unintended weight loss, lump in the abdomen.",
+    "suggested_specialist": "nephrology",
+    "keywords": "chronic uti, recurrent infection, constant uti, bladder pain, repeat infection",
+    "urgency": "low"
+  },
+  {
+    "category": "Obstetrics and Gynecology",
+    "topic": "UTI in Pregnancy",
+    "symptoms_patient": "Pregnant patient experiencing painful urination, frequent urge to pee, cloudy urine, or lower belly pressure.",
+    "red_flags": "Fever (>38°C), flank/back pain (risk of premature labor), uterine contractions, vaginal bleeding, decreased fetal movement.",
+    "suggested_specialist": "obstetrics-gynecology",
+    "keywords": "pregnant uti, pregnancy pain, burning pee pregnant, cloudy urine pregnancy",
+    "urgency": "high"
+  }
+]
