@@ -19,8 +19,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/LogoName.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/Logo.png"
@@ -29,6 +28,9 @@
       "eas": {
         "projectId": "15d1e91e-371e-4937-9d0d-ab38415867f8"
       }
-    }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }
