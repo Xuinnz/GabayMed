@@ -233,10 +233,8 @@ export const ledgerAPI = {
       const { data: ledgerData, error: ledgerError } = await supabase
         .from('ledger')
         .select('total_bill_amount, type')
-        .eq('patient_id', patientId)
-        .neq('type', 'PMT')
-        .neq('type', 'PAYMENT');
-
+        .eq('patient_id', patientId);
+        
       if (ledgerError) throw ledgerError;
 
       const totalBalance = ledgerData.reduce((sum, item) => sum + parseFloat(item.total_bill_amount || 0), 0);
@@ -267,10 +265,15 @@ export const ledgerAPI = {
         const deductible = parseFloat(plan.deductible || 0);
         const copay = parseFloat(plan.copay_amount || 0);
 
-        if (maxLimit > totalBalance) {
-          insurancePortion = deductible + copay;
-        } else {
+        if (totalBalance <= deductible) {
+          insurancePortion = 0;
+        } else if (totalBalance > deductible) {
+          insurancePortion = totalBalance - deductible;
+          patientPortion = deductible;
+        }
+        else if (totalBalance > maxLimit) {
           insurancePortion = maxLimit;
+          patientPortion = totalBalance - insurancePortion;
         }
         
         // Prevent negative patient portion if insurance portion exceeds balance
