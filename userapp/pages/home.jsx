@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Calendar, Clock, Sparkles, Plus, Heart } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Calendar, Clock, Plus } from 'lucide-react-native';
 import GeoAltFill from 'react-native-bootstrap-icons/icons/geo-alt-fill';
 import { AppHeader } from '../components/app-header';
 import { MapViewSection } from '../components/map-view-section';
 import { BrowseServices } from '../components/browse-services';
-import HomeAPI from '../services/homeApi'; // Added Import
+import HomeAPI from '../services/homeApi';
 
-export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpenAppointmentBooking, onNavigateToCases }) {
+export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAppointmentBooking, onNavigateToCases }) {
   const [upcomingAppointment, setUpcomingAppointment] = useState(null);
-  const [aiTriageQuestion, setAiTriageQuestion] = useState("What's the difference between COVID-19 and flu?");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -90,41 +87,6 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAI, onOpen
             </TouchableOpacity>
           </View>
         )}
-      </View>
-
-      {/* AI Triage Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>How are you feeling today?</Text>
-
-        <TouchableOpacity onPress={onOpenAI} style={styles.aiTriageButton}>
-          <View style={styles.aiTriageContent}>
-            <LinearGradient
-              colors={['#66BAFF', '#83BFF0']}
-              locations={[0.5, 1]}
-              style={styles.aiTriageBackground}
-            />
-            <Image 
-              source={require('../assets/AITriage.png')}
-              style={styles.aiTriageImage}
-              resizeMode="cover"
-            />
-            <View style={styles.aiTriageTitleContainer}>
-              <BlurView intensity={10} style={styles.aiTriageBlurView}>
-                <Text style={styles.aiTriageTitle}>AI Triage</Text>
-              </BlurView>
-            </View>
-          </View>
-          <View style={styles.aiTriageFooter}>
-            <View style={styles.aiTriageIconContainer}>
-              <Image 
-                source={require('../assets/logoblue.png')}
-                style={styles.aiTriageLogoIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.aiTriageSubtitle}>{aiTriageQuestion}</Text>
-          </View>
-        </TouchableOpacity>
       </View>
 
       {/* Seek Medical Care Section */}
@@ -278,82 +240,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
-  },
-  aiTriageButton: {
-    marginTop: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  aiTriageContent: {
-    height: 180,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  aiTriageBackground: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  aiTriageImage: {
-    position: 'absolute',
-    width: '70%',
-    height: '100%',
-    alignSelf: 'center',
-    top: '1%',
-  },
-  aiTriageTitleContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  aiTriageBlurView: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
-    top: 20,
-    left: -10,
-  },
-  aiTriageTitle: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  aiTriageFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    gap: 12,
-  },
-  aiTriageIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: '#eff6ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  aiTriageLogoIcon: {
-    width: 32,
-    height: 32,
-  },
-  aiTriageSubtitle: {
-    flex: 1,
-    fontSize: 14,
-    color: '#9ca3af',
   },
 });

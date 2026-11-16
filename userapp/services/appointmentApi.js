@@ -88,7 +88,7 @@ const AppointmentAPI = {
       const { data: existingPatient, error: fetchError } = await supabase
         .from('patients')
         .select('patient_id')
-        .eq('user_id', userId)
+        .eq('profile_id', userId)
         .eq('facility_id', facilityId)
         .maybeSingle();
 
@@ -98,7 +98,7 @@ const AppointmentAPI = {
         // 2a. Fetch Profile Data to populate Patient record
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('full_name, date_of_birth, gender')
+          .select('full_name, first_name, middle_name, last_name, phone_number, address, date_of_birth, gender')
           .eq('id', userId)
           .single();
 
@@ -111,9 +111,14 @@ const AppointmentAPI = {
         const { data: newPatient, error: createError } = await supabase
           .from('patients')
           .insert([{
-            user_id: userId,
+            profile_id: userId,
             facility_id: facilityId,
             full_name: profile.full_name || 'Guest User', // Fallback to satisfy NOT NULL
+            first_name: profile.first_name || null,
+            middle_name: profile.middle_name || null,
+            last_name: profile.last_name || null,
+            phone_number: profile.phone_number || null,
+            address: profile.address || null,
             date_of_birth: profile.date_of_birth,
             gender: profile.gender
           }])
