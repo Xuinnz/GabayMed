@@ -307,7 +307,8 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
               <TouchableOpacity
                 style={styles.bookButton}
                 onPress={() => {
-                  setBookingFacility(selectedFacility); // Save the ID before closing
+                  const chosen = allFacilities.find((h) => h.id === selectedFacility);
+                  setBookingFacility(chosen?.facilityId || selectedFacility); // Pass the actual UUID facilityId for booking
                   setSelectedFacility(null); // Close details modal
                   setShowAppointmentBooking(true); // Open booking modal
                 }}

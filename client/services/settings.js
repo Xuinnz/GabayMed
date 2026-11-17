@@ -40,10 +40,17 @@ export const settingsAPI = {
   async saveBranch(facilityId, id, form) {
     if (!facilityId) throw new Error('Your account has no clinic assignment.');
     const values = branchRecord(form);
-    const query = id
-      ? supabase.from('clinic_branches').update(values).eq('branch_id', id).eq('facility_id', facilityId)
-      : supabase.from('clinic_branches').insert({ ...values, facility_id: facilityId });
-    const { data, error } = await query.select().single();
+    const runSave = payload => id
+      ? supabase.from('clinic_branches').update(payload).eq('branch_id', id).eq('facility_id', facilityId)
+      : supabase.from('clinic_branches').insert({ ...payload, facility_id: facilityId });
+    let { data, error } = await runSave(values).select().single();
+    // Graceful fallback if `lat`/`long` columns haven't been added to clinic_branches yet
+    if (error && (error.message?.includes('lat') || error.message?.includes('long') || error.code === 'PGRST204')) {
+      const { lat, long, ...withoutCoords } = values;
+      const retry = await runSave(withoutCoords).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) throw settingsLocationError(error, 'This branch code already exists in your clinic.');
     return data;
   },

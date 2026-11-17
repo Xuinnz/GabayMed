@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo, createContext } from "react"
-import { Building2, Plus, X, Pencil, Trash2, Eye, Check, Copy, TriangleAlert, Info } from "lucide-react"
+import { Building2, Plus, X, Pencil, Trash2, Eye, Check, Copy, TriangleAlert, Info, MapPin, Search } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -1204,9 +1204,22 @@ function SettingsBranchesTab({ account, branches, setBranches, loading, loadErro
             <fieldset disabled={busy || !canManage} className="grid gap-4 md:grid-cols-2">
               {[
                 ['name', 'Branch Name', 'text', true, 160], ['abbreviation', 'Branch Code', 'text', true, 30],
-                ['address', 'Address', 'text', true, 1000], ['contact_num', 'Phone', 'tel', true, 50],
-                ['email', 'Email', 'email', false, 254]
-              ].map(([key, label, type, required, max]) => <div key={key} className={`space-y-2 ${key === 'address' ? 'md:col-span-2' : ''}`}><Label htmlFor={`branch-${key}`}>{label}{required && <span className="text-red-500"> *</span>}</Label><Input id={`branch-${key}`} type={type} required={required} maxLength={max} value={form[key]} aria-invalid={draft.touched[key] && !!draft.errors[key]} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} /><SettingsFieldError draft={draft} field={key} /></div>)}
+                ['contact_num', 'Phone', 'tel', true, 50], ['email', 'Email', 'email', false, 254]
+              ].map(([key, label, type, required, max]) => <div key={key} className="space-y-2"><Label htmlFor={`branch-${key}`}>{label}{required && <span className="text-red-500"> *</span>}</Label><Input id={`branch-${key}`} type={type} required={required} maxLength={max} value={form[key]} aria-invalid={draft.touched[key] && !!draft.errors[key]} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} /><SettingsFieldError draft={draft} field={key} /></div>)}
+              <div className="space-y-2 md:col-span-2">
+                <BranchLocationMapPicker
+                  address={form.address}
+                  lat={form.lat}
+                  lng={form.long}
+                  disabled={busy || !canManage}
+                  invalid={draft.touched.address && !!draft.errors.address}
+                  onChange={({ address, lat, lng }) => {
+                    draft.touch('address')
+                    setForm(previous => ({ ...previous, address, lat, long: lng }))
+                  }}
+                />
+                <SettingsFieldError draft={draft} field="address" />
+              </div>
               <label className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-sm font-medium ${form.is_active ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200'}`}><span>Active Branch</span><Checkbox className="h-5 w-5 rounded-md" checked={form.is_active} disabled={busy || !canManage} onCheckedChange={checked => setForm(previous => ({ ...previous, is_active: checked === true }))} /></label>
             </fieldset>
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setForm(null)}>{canManage ? 'Cancel' : 'Close'}</Button>{canManage && <Button type="submit" className="bg-blue-500" disabled={busy || !draft.canSave}>{busy ? 'Saving...' : 'Save Branch'}</Button>}</div>
@@ -1549,6 +1562,285 @@ function useSettingsDraft(type, values) {
     start: value => { setOriginal(value ? structuredClone(value) : null); setTouched({}) },
     touch: field => { if (field) setTouched(previous => previous[field] ? previous : { ...previous, [field]: true }) }
   }
+}
+
+function BranchLocationMapPicker({ address = '', lat = null, lng = null, disabled = false, invalid = false, onChange }) {
+  const [query, setQuery] = useState(address || '')
+  const [results, setResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [reverseBusy, setReverseBusy] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [coords, setCoords] = useState(() => {
+    const nLat = Number(lat)
+    const nLng = Number(lng)
+    return Number.isFinite(nLat) && Number.isFinite(nLng) && nLat !== 0 && nLng !== 0
+      ? { lat: nLat, lng: nLng }
+      : null
+  })
+  const mapDivRef = useRef(null)
+  const leafletMapRef = useRef(null)
+  const leafletMarkerRef = useRef(null)
+
+  useEffect(() => {
+    setQuery(address || '')
+  }, [address])
+
+  // Reverse-geocodes dropped/dragged pin coordinates into a real street address and updates the form
+  const reverseGeocodeAndSet = useCallback(async (pickedLat, pickedLng) => {
+    const roundedLat = Number(pickedLat.toFixed(6))
+    const roundedLng = Number(pickedLng.toFixed(6))
+    setCoords({ lat: roundedLat, lng: roundedLng })
+    setShowDropdown(false)
+    setReverseBusy(true)
+    let resolvedAddress = `${roundedLat}, ${roundedLng}`
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(roundedLat)}&lon=${encodeURIComponent(roundedLng)}&zoom=18&addressdetails=1`,
+        { headers: { Accept: 'application/json' } }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.display_name) {
+          resolvedAddress = data.display_name
+        }
+      }
+    } catch {}
+    finally {
+      setReverseBusy(false)
+    }
+    setQuery(resolvedAddress)
+    onChange({ address: resolvedAddress, lat: roundedLat, lng: roundedLng })
+  }, [onChange])
+
+  // Load Leaflet once & initialize interactive click-to-pin / drag-to-pin map
+  useEffect(() => {
+    let cancelled = false
+
+    const ensureLeaflet = () =>
+      new Promise(resolve => {
+        if (window.L) return resolve(window.L)
+        if (!document.getElementById('leaflet-css-cdn')) {
+          const link = document.createElement('link')
+          link.id = 'leaflet-css-cdn'
+          link.rel = 'stylesheet'
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+          document.head.appendChild(link)
+        }
+        const existingScript = document.getElementById('leaflet-js-cdn')
+        if (existingScript) {
+          existingScript.addEventListener('load', () => resolve(window.L))
+          return
+        }
+        const script = document.createElement('script')
+        script.id = 'leaflet-js-cdn'
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        script.onload = () => resolve(window.L)
+        document.body.appendChild(script)
+      })
+
+    ensureLeaflet().then(L => {
+      if (cancelled || !L || !mapDivRef.current || leafletMapRef.current) return
+      const startCenter = coords || { lat: 14.5995, lng: 120.9842 }
+      const map = L.map(mapDivRef.current).setView([startCenter.lat, startCenter.lng], coords ? 16 : 12)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap',
+      }).addTo(map)
+
+      const placeOrMoveMarker = (latVal, lngVal) => {
+        if (!leafletMarkerRef.current) {
+          const marker = L.marker([latVal, lngVal], { draggable: !disabled }).addTo(map)
+          marker.on('dragend', ev => {
+            const pos = ev.target.getLatLng()
+            reverseGeocodeAndSet(pos.lat, pos.lng)
+          })
+          leafletMarkerRef.current = marker
+        } else {
+          leafletMarkerRef.current.setLatLng([latVal, lngVal])
+        }
+      }
+
+      if (coords) {
+        placeOrMoveMarker(coords.lat, coords.lng)
+      }
+
+      map.on('click', ev => {
+        if (disabled) return
+        const { lat: cLat, lng: cLng } = ev.latlng
+        placeOrMoveMarker(cLat, cLng)
+        reverseGeocodeAndSet(cLat, cLng)
+      })
+
+      leafletMapRef.current = map
+      setTimeout(() => map.invalidateSize(), 200)
+    })
+
+    return () => {
+      cancelled = true
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove()
+        leafletMapRef.current = null
+        leafletMarkerRef.current = null
+      }
+    }
+  }, [disabled])
+
+  // Sync map view & marker whenever coords change (e.g. from search suggestion)
+  useEffect(() => {
+    const L = window.L
+    const map = leafletMapRef.current
+    if (!L || !map || !coords) return
+    map.setView([coords.lat, coords.lng], 16)
+    if (!leafletMarkerRef.current) {
+      const marker = L.marker([coords.lat, coords.lng], { draggable: !disabled }).addTo(map)
+      marker.on('dragend', ev => {
+        const pos = ev.target.getLatLng()
+        reverseGeocodeAndSet(pos.lat, pos.lng)
+      })
+      leafletMarkerRef.current = marker
+    } else {
+      leafletMarkerRef.current.setLatLng([coords.lat, coords.lng])
+    }
+  }, [coords])
+
+  // Debounced live location search in the Philippines via OpenStreetMap Nominatim
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!showDropdown || trimmed.length < 3) {
+      setResults([])
+      return undefined
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=ph&q=${encodeURIComponent(trimmed)}`,
+          { headers: { Accept: 'application/json' } }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setResults(Array.isArray(data) ? data : [])
+        }
+      } catch {}
+      finally { setSearching(false) }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [query, showDropdown])
+
+  // If editing an existing branch that has an address string but no coordinates yet, resolve it once for the map preview
+  useEffect(() => {
+    if (coords || !address || address.trim().length < 4) return undefined
+    let active = true
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ph&q=${encodeURIComponent(address.trim())}`,
+      { headers: { Accept: 'application/json' } }
+    )
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => {
+        if (active && Array.isArray(data) && data[0]?.lat && data[0]?.lon) {
+          setCoords({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  const selectSuggestion = item => {
+    const pickedLat = parseFloat(item.lat)
+    const pickedLng = parseFloat(item.lon)
+    const pickedAddress = item.display_name
+    setQuery(pickedAddress)
+    setCoords({ lat: pickedLat, lng: pickedLng })
+    setShowDropdown(false)
+    onChange({ address: pickedAddress, lat: pickedLat, lng: pickedLng })
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="branch-address">
+        Location / Address (Search or Click Map to Pin) <span className="text-red-500">*</span>
+      </Label>
+      <div className="relative">
+        <div className="relative flex items-center">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+          <Input
+            id="branch-address"
+            type="text"
+            required
+            maxLength={1000}
+            disabled={disabled}
+            placeholder="Search a street/building/city OR click directly on the map below to drop a pin..."
+            className="pl-9 pr-9"
+            value={query}
+            aria-invalid={invalid}
+            onFocus={() => setShowDropdown(true)}
+            onChange={e => {
+              const nextVal = e.target.value
+              setQuery(nextVal)
+              setShowDropdown(true)
+              onChange({ address: nextVal, lat: coords?.lat ?? null, lng: coords?.lng ?? null })
+            }}
+          />
+          {query && !disabled && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setCoords(null)
+                setResults([])
+                if (leafletMarkerRef.current && leafletMapRef.current) {
+                  leafletMapRef.current.removeLayer(leafletMarkerRef.current)
+                  leafletMarkerRef.current = null
+                }
+                onChange({ address: '', lat: null, lng: null })
+              }}
+              className="absolute right-3 text-slate-400 hover:text-slate-600"
+              aria-label="Clear location"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {showDropdown && (searching || results.length > 0) && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-[1000] rounded-lg border border-slate-200 bg-white shadow-lg max-h-56 overflow-y-auto">
+            {searching && results.length === 0 ? (
+              <div className="px-3 py-2.5 text-xs text-slate-500">Searching locations...</div>
+            ) : (
+              results.map(item => (
+                <button
+                  key={item.place_id}
+                  type="button"
+                  onClick={() => selectSuggestion(item)}
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-sky-50 flex items-start gap-2.5 border-b last:border-b-0 border-slate-100"
+                >
+                  <MapPin className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+                  <span className="text-slate-700 leading-snug">{item.display_name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100/80 border-b border-slate-200 text-xs text-slate-600">
+          <span className="flex items-center gap-1.5 font-medium">
+            <MapPin className="w-3.5 h-3.5 text-sky-600" />
+            {reverseBusy
+              ? 'Fetching address for dropped pin...'
+              : coords
+                ? `Pinned on Patient Map (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}) — Click anywhere or drag pin to adjust`
+                : 'Click anywhere on the map below to drop a pin (or search above)'}
+          </span>
+        </div>
+        <div
+          ref={mapDivRef}
+          className="w-full h-56 z-0 cursor-crosshair"
+        />
+      </div>
+    </div>
+  )
 }
 
 function SettingsFieldError({ draft, field }) {

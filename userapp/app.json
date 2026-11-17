@@ -31,7 +31,13 @@
     },
     "plugins": [
       "expo-status-bar",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow GabayMed to access your location so we can show nearby hospitals and clinics and guide you there."
+        }
+      ]
     ]
   }
 }

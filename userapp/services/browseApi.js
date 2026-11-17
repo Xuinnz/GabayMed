@@ -1,89 +1,62 @@
-import { supabase } from '../lib/supabase';
-
-// Helper: Haversine Formula for distance
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
-  return d;
-}
-
-function deg2rad(deg) {
-  return deg * (Math.PI / 180);
-}
+import MapAPI from './mapApi';
 
 const BrowseAPI = {
   /**
-   * Fetches facilities for the Seek Medical Care page.
-   * Calculates distance from a proxy location (PUP Sta Mesa).
-   * Extracts distinct services.
+   * Fetches facilities for the Seek Medical Care page using real user location if permitted,
+   * and extracts distinct services offered across registered facilities.
    */
   async getSeekCareData() {
     try {
-      // 1. Proxy User Location: PUP Sta. Mesa
-      const USER_LAT = 14.5977;
-      const USER_LONG = 121.0112;
+      // 1. Request or check user location permission
+      const locRes = await MapAPI.requestUserLocation();
+      const userCoords = locRes.granted ? locRes.coords : null;
 
-      // 2. Fetch all facilities
-      const { data: facilities, error } = await supabase
-        .from('facilities')
-        .select('*');
+      // 2. Fetch facilities with resolved coordinates & distance
+      const facilities = await MapAPI.getFacilitiesLocations(userCoords);
 
-      if (error) throw error;
+      // 3. Format for SeekMedicalCare cards (keep unique `id` for facility vs branch, and `facilityId` for booking)
+      const processedFacilities = facilities.map(f => ({
+        id: String(f.id ?? (f.branchId ? `branch-${f.branchId}` : `facility-${f.facilityId}`)),
+        facilityId: f.facilityId ?? f.id,
+        branchId: f.branchId ?? null,
+        type: f.type || 'facility',
+        name: f.name,
+        address: f.address,
+        phone: f.phone,
+        email: f.email,
+        rating: 4.8,
+        isOpen: true,
+        isGabay: f.isGabay !== false,
+        distance: f.distanceLabel || 'View on map',
+        distValue: f.distanceKm ?? 99999,
+        services: Array.isArray(f.services) ? f.services : [],
+        imageUrl: f.imageUrl,
+        latitude: f.latitude,
+        longitude: f.longitude,
+      }));
 
-      // 3. Process Facilities (Calculate Distance)
-      const processedFacilities = facilities.map(f => {
-        let distance = 'N/A';
-        let distValue = 99999; // For sorting
-
-        if (f.lat && f.long) {
-          const km = getDistanceFromLatLonInKm(USER_LAT, USER_LONG, parseFloat(f.lat), parseFloat(f.long));
-          distValue = km;
-          distance = km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(1)} km`;
-        }
-
-        return {
-          id: f.facility_id,
-          name: f.name,
-          address: f.address,
-          rating: 4.5, // Mock rating if not in DB
-          isOpen: true, // Mock open status
-          isGabay: f.is_gabay, // Important for booking
-          distance: distance,
-          distValue: distValue,
-          services: f.services_offered || [], // Array of strings
-          imageUrl: f.image_url // Added image_url
-        };
-      });
-
-      // Sort by distance
-      processedFacilities.sort((a, b) => a.distValue - b.distValue);
-
-      // 4. Extract Distinct Services (Simulating SELECT DISTINCT unnest)
+      // 4. Extract distinct services
       const allServices = new Set();
-      facilities.forEach(f => {
-        if (Array.isArray(f.services_offered)) {
-          f.services_offered.forEach(s => allServices.add(s));
+      processedFacilities.forEach(f => {
+        if (Array.isArray(f.services)) {
+          f.services.forEach(s => {
+            if (s && typeof s === 'string') allServices.add(s.trim());
+          });
         }
       });
       const distinctServices = Array.from(allServices).sort();
 
       return {
         facilities: processedFacilities,
-        services: distinctServices
+        services: distinctServices,
+        userCoords,
+        locationGranted: locRes.granted,
       };
-
     } catch (error) {
-      console.error("Get Seek Care Data Error:", error);
-      return { facilities: [], services: [] };
+      console.error('Get Seek Care Data Error:', error);
+      return { facilities: [], services: [], userCoords: null, locationGranted: false };
     }
-  }
+  },
 };
 
 export default BrowseAPI;
