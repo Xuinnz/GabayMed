@@ -7,7 +7,7 @@ import { MapViewSection } from '../components/map-view-section';
 import { BrowseServices } from '../components/browse-services';
 import HomeAPI from '../services/homeApi';
 
-export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAppointmentBooking, onNavigateToCases }) {
+export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenAppointmentBooking, onNavigateToCases }) {
   const [upcomingAppointment, setUpcomingAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +39,7 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenAppointmen
   return (
     <ScrollView style={styles.container}>
       {/* App Header */}
-      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
+      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} onOpenProfile={onOpenProfile} />
 
       {/* Upcoming Appointment Section */}
       <View style={[styles.section, styles.firstSection]}>

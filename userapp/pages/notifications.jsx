@@ -2,15 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { ArrowLeft, Calendar, CreditCard, Gift, Bell } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import ProfileAPI from '../services/profileApi';
 
 export function NotificationsPage({ onBack }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsAllowed, setNotificationsAllowed] = useState(true);
 
   useEffect(() => {
+    ProfileAPI.getPermissions()
+      .then(perms => {
+        setNotificationsAllowed(perms?.notificationsAllowed !== false);
+      })
+      .catch(() => {});
     fetchNotifications();
+    const unsub = ProfileAPI.subscribePermissions(perms => {
+      setNotificationsAllowed(perms?.notificationsAllowed !== false);
+    });
+    return unsub;
   }, []);
 
   const fetchNotifications = async () => {
@@ -148,13 +159,13 @@ export function NotificationsPage({ onBack }) {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Notifications</Text>
-          {unreadCount > 0 && (
+          {notificationsAllowed && unreadCount > 0 && (
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>{unreadCount}</Text>
             </View>
           )}
         </View>
-        {unreadCount > 0 && (
+        {notificationsAllowed && unreadCount > 0 && (
           <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
             <Text style={styles.markAllText}>Mark all</Text>
           </TouchableOpacity>
@@ -162,7 +173,29 @@ export function NotificationsPage({ onBack }) {
       </LinearGradient>
 
       {/* Notifications List */}
-      {loading ? (
+      {!notificationsAllowed ? (
+        <View style={styles.emptyContainer}>
+          <Bell size={48} color="#94a3b8" />
+          <Text style={styles.emptyText}>Notifications are turned off</Text>
+          <Text style={[styles.emptySubtext, { textAlign: 'center' }]}>
+            Enable notifications in Settings or tap below to receive appointment, billing, and coverage updates.
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: 18,
+              backgroundColor: '#0ea5e9',
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              borderRadius: 999,
+            }}
+            onPress={() => ProfileAPI.setPermissions({ notificationsAllowed: true })}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+              Turn On Notifications
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0ea5e9" />
         </View>

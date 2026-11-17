@@ -64,6 +64,8 @@ module.exports = {
     { unavailable: 'Login is temporarily unavailable. Please try again later.' }),
   session: endpoint(req => patient.refreshPatientSession({ admin: client(), auth: client() }, req.body)),
   onboarding: endpoint(req => patient.completeOnboarding(client(), bearer(req), req.body), { headers: 'Authorization, Content-Type' }),
+  profile: endpoint(req => patient.managePatientProfile(client(), bearer(req), req.body, { secret: process.env.SUPABASE_SERVICE_ROLE_KEY }),
+    { headers: 'Authorization, Content-Type', unavailable: 'Profile service is temporarily unavailable. Please try again later.' }),
   resetPassword: endpoint(req => patient.resetPatientPassword(client(), req.body, { secret: process.env.SUPABASE_SERVICE_ROLE_KEY }),
     { unavailable: 'Password reset is temporarily unavailable. Please try again later.' }),
   logout: endpoint(req => patient.logoutPatient(client(), bearer(req)), { headers: 'Authorization, Content-Type' })

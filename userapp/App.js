@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { HomePage } from './pages/home';
-import { SettingsPage } from './pages/settings';
+import { SettingsPage, ProfilePage } from './pages/settings';
 import { MessagesPage } from './pages/message';
 import { SeekMedicalCare } from './pages/seekmedicalcare';
 import { MyFacilities } from './pages/facilities';
@@ -15,6 +15,7 @@ import { RegisterPage } from './pages/auth/register';
 import { ForgotPasswordPage } from './pages/auth/forgot-password';
 import { OnboardingPage } from './pages/auth/onboarding';
 import Session from './services/session';
+import ProfileAPI from './services/profileApi';
 import 'react-native-url-polyfill/auto';
 
 export default function App() {
@@ -23,14 +24,23 @@ export default function App() {
   const [authScreen, setAuthScreen] = useState('login'); // 'login' | 'register'
   const [prefillEmail, setPrefillEmail] = useState('');
   const [activeTab, setActiveTab] = useState('home');
+  const [showProfile, setShowProfile] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
 
+  const handleOpenProfilePage = () => {
+    setShowProfile(true);
+  };
+
   useEffect(() => {
     const unsubscribe = Session.subscribe(next => {
       setSession(next);
-      if (!next) {
+      if (next) {
+        ProfileAPI.getProfile().catch(() => {});
+        ProfileAPI.getPermissions().catch(() => {});
+      } else {
+        setShowProfile(false);
         setShowMessages(false);
         setShowNotifications(false);
         setShowAppointment(false);
@@ -38,6 +48,15 @@ export default function App() {
       }
     });
     Session.restore()
+      .then(restored => {
+        if (restored) {
+          return Promise.all([
+            ProfileAPI.getProfile().catch(() => {}),
+            ProfileAPI.getPermissions().catch(() => {}),
+          ]);
+        }
+        return null;
+      })
       .catch(() => {})
       .finally(() => setBooting(false));
     return unsubscribe;
@@ -107,55 +126,52 @@ export default function App() {
     return <NotificationsPage onBack={() => setShowNotifications(false)} />;
   }
 
-  const renderPage = () => {
-    switch (activeTab) {
-      case 'home':
-        return (
-          <HomePage
-            onOpenMessages={() => setShowMessages(true)}
-            onOpenNotifications={() => setShowNotifications(true)}
-            onOpenAppointmentBooking={() => setShowAppointment(true)}
-            onNavigateToCases={() => setActiveTab('cases')}
-          />
-        );
-      case 'cases':
-        return (
-          <SeekMedicalCare
-            onOpenMessages={() => setShowMessages(true)}
-            onOpenNotifications={() => setShowNotifications(true)}
-          />
-        );
-      case 'facilities':
-        return (
-          <MyFacilities
-            onOpenMessages={() => setShowMessages(true)}
-            onOpenNotifications={() => setShowNotifications(true)}
-          />
-        );
-      case 'settings':
-        return (
-          <SettingsPage
-            onOpenMessages={() => setShowMessages(true)}
-            onOpenNotifications={() => setShowNotifications(true)}
-            onSignOut={() => setAuthScreen('login')}
-          />
-        );
-      default:
-        return (
-          <HomePage
-            onOpenMessages={() => setShowMessages(true)}
-            onOpenNotifications={() => setShowNotifications(true)}
-            onOpenAppointmentBooking={() => setShowAppointment(true)}
-            onNavigateToCases={() => setActiveTab('cases')}
-          />
-        );
-    }
-  };
-
   return (
     <View style={styles.container}>
-      {renderPage()}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {showProfile ? (
+        <ProfilePage onBack={() => setShowProfile(false)} />
+      ) : (
+        <View style={styles.container}>
+          <View style={[styles.tabLayer, activeTab !== 'home' && styles.hiddenTab]}>
+            <HomePage
+              onOpenMessages={() => setShowMessages(true)}
+              onOpenNotifications={() => setShowNotifications(true)}
+              onOpenProfile={handleOpenProfilePage}
+              onOpenAppointmentBooking={() => setShowAppointment(true)}
+              onNavigateToCases={() => setActiveTab('cases')}
+            />
+          </View>
+          <View style={[styles.tabLayer, activeTab !== 'cases' && styles.hiddenTab]}>
+            <SeekMedicalCare
+              onOpenMessages={() => setShowMessages(true)}
+              onOpenNotifications={() => setShowNotifications(true)}
+              onOpenProfile={handleOpenProfilePage}
+            />
+          </View>
+          <View style={[styles.tabLayer, activeTab !== 'facilities' && styles.hiddenTab]}>
+            <MyFacilities
+              onOpenMessages={() => setShowMessages(true)}
+              onOpenNotifications={() => setShowNotifications(true)}
+              onOpenProfile={handleOpenProfilePage}
+            />
+          </View>
+          <View style={[styles.tabLayer, activeTab !== 'settings' && styles.hiddenTab]}>
+            <SettingsPage
+              onOpenMessages={() => setShowMessages(true)}
+              onOpenNotifications={() => setShowNotifications(true)}
+              onOpenProfile={handleOpenProfilePage}
+              onSignOut={() => setAuthScreen('login')}
+            />
+          </View>
+        </View>
+      )}
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={tab => {
+          setShowProfile(false);
+          setActiveTab(tab);
+        }}
+      />
       <AppointmentBooking visible={showAppointment} onClose={() => setShowAppointment(false)} />
       <StatusBar style="dark" />
     </View>
@@ -164,5 +180,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  tabLayer: { flex: 1 },
+  hiddenTab: { display: 'none' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
 });

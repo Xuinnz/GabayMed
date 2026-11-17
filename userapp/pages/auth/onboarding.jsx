@@ -9,8 +9,10 @@ import {
 import {
   AuthLogo, PrimaryButton, OutlineButton, BackButton, IconBadge, Popup, ErrorBanner, COLORS, authText,
 } from '../../components/auth/auth-ui';
+import * as Location from 'expo-location';
 import { CONSENTS } from '../../components/auth/legal';
 import AuthAPI from '../../services/authApi';
+import ProfileAPI from '../../services/profileApi';
 import Session from '../../services/session';
 
 // Three intro slides (AI wording removed per US-3.0 notes).
@@ -64,6 +66,12 @@ export function OnboardingPage({ onComplete }) {
     setSaving(true);
     setError('');
     try {
+      await ProfileAPI.setPermissions({
+        insuranceConsent: !!nextConsents.insurance_consent,
+        dataSharingConsent: !!nextConsents.data_sharing_consent,
+        locationAllowed: !!nextConsents.location_allowed,
+        notificationsAllowed: !!nextConsents.notifications_allowed,
+      });
       const token = await Session.getAccessToken();
       const res = await AuthAPI.completeOnboarding(token, {
         insurance_consent: nextConsents.insurance_consent,
@@ -262,9 +270,14 @@ export function OnboardingPage({ onComplete }) {
           title="Location Access"
           message="To locate nearby hospitals, enable location access in your phone settings."
           actionLabel="Allow access"
-          onAction={() => {
+          onAction={async () => {
             setShowLocationPopup(false);
-            setConsents(c => ({ ...c, location_allowed: true }));
+            let granted = true;
+            try {
+              const perm = await Location.requestForegroundPermissionsAsync();
+              granted = perm.status === 'granted';
+            } catch {}
+            setConsents(c => ({ ...c, location_allowed: granted }));
             setStage('notifications');
           }}
         />

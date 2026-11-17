@@ -7,6 +7,8 @@ import {
 } from 'lucide-react-native';
 import MapView, { Marker, Callout, Polyline } from 'react-native-maps';
 import MapAPI, { getDistanceKm, formatDistance } from '../services/mapApi';
+import ProfileAPI from '../services/profileApi';
+import { Popup } from './auth/auth-ui';
 
 const DEFAULT_REGION = {
   latitude: 14.5995,
@@ -65,8 +67,23 @@ export function MapViewSection({ onSelectFacility }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Popup asking permission before turning on location when Location Access is OFF
+  const [locationPromptAction, setLocationPromptAction] = useState(null); // null | { type: 'recenter' | 'directions', dest?: any }
+  const [locatingBusy, setLocatingBusy] = useState(false);
+
   useEffect(() => {
     initializeMap();
+    const unsub = ProfileAPI.subscribePermissions(perms => {
+      if (!perms.locationAllowed) {
+        setLocationGranted(false);
+        setUserCoords(null);
+        setActiveRoute(null);
+        setShowSteps(false);
+      } else {
+        initializeMap();
+      }
+    });
+    return unsub;
   }, []);
 
   const initializeMap = async () => {
@@ -84,9 +101,8 @@ export function MapViewSection({ onSelectFacility }) {
     setRegion(computeBoundingRegion(points));
   };
 
-  const ensureUserLocation = async () => {
-    if (locationGranted && userCoords) return userCoords;
-    const locResult = await MapAPI.requestUserLocation();
+  const activateAndFetchUserLocation = async () => {
+    const locResult = await MapAPI.requestUserLocation({ forceEnable: true });
     if (!locResult.granted) {
       Linking.openSettings?.();
       return null;
@@ -109,6 +125,60 @@ export function MapViewSection({ onSelectFacility }) {
       );
     }
     return locResult.coords;
+  };
+
+  const panToUserCoords = coords => {
+    if (!coords) return;
+    const targetRegion = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      latitudeDelta: 0.03,
+      longitudeDelta: 0.03,
+    };
+    setRegion(targetRegion);
+    inlineMapRef.current?.animateToRegion?.(targetRegion, 450);
+    fullMapRef.current?.animateToRegion?.(targetRegion, 450);
+    setTimeout(() => {
+      inlineMarkerRefs.current.__user__?.showCallout?.();
+      fullMarkerRefs.current.__user__?.showCallout?.();
+    }, 300);
+  };
+
+  const computeAndFrameRoute = async (origin, dest) => {
+    if (!origin || !dest) return;
+    setSelectedPin(dest);
+    setLoadingRoute(true);
+    try {
+      const routeData = await MapAPI.getInAppRoute(origin, dest);
+      setActiveRoute(routeData);
+
+      const framed = computeBoundingRegion([
+        origin,
+        { latitude: dest.latitude, longitude: dest.longitude },
+      ]);
+      setRegion(framed);
+      inlineMapRef.current?.animateToRegion?.(framed, 500);
+      fullMapRef.current?.animateToRegion?.(framed, 500);
+    } finally {
+      setLoadingRoute(false);
+    }
+  };
+
+  const handleConfirmLocationPopup = async () => {
+    const pending = locationPromptAction;
+    setLocatingBusy(true);
+    try {
+      const coords = await activateAndFetchUserLocation();
+      setLocationPromptAction(null);
+      if (!coords) return;
+      if (pending?.type === 'directions' && pending.dest) {
+        await computeAndFrameRoute(coords, pending.dest);
+      } else {
+        panToUserCoords(coords);
+      }
+    } finally {
+      setLocatingBusy(false);
+    }
   };
 
   const selectFacilityPin = loc => {
@@ -152,45 +222,22 @@ export function MapViewSection({ onSelectFacility }) {
     const dest = targetFacility || selectedPin;
     if (!dest) return;
 
-    setSelectedPin(dest);
-    setLoadingRoute(true);
-    try {
-      const origin = await ensureUserLocation();
-      if (!origin) {
-        setLoadingRoute(false);
-        return;
-      }
-      const routeData = await MapAPI.getInAppRoute(origin, dest);
-      setActiveRoute(routeData);
-
-      const framed = computeBoundingRegion([
-        origin,
-        { latitude: dest.latitude, longitude: dest.longitude },
-      ]);
-      setRegion(framed);
-      inlineMapRef.current?.animateToRegion?.(framed, 500);
-      fullMapRef.current?.animateToRegion?.(framed, 500);
-    } finally {
-      setLoadingRoute(false);
+    const perms = await ProfileAPI.getPermissions();
+    if (!locationGranted || !perms.locationAllowed || !userCoords) {
+      setLocationPromptAction({ type: 'directions', dest });
+      return;
     }
+
+    await computeAndFrameRoute(userCoords, dest);
   };
 
   const recenterOnUser = async () => {
-    const coords = await ensureUserLocation();
-    if (!coords) return;
-    const targetRegion = {
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      latitudeDelta: 0.03,
-      longitudeDelta: 0.03,
-    };
-    setRegion(targetRegion);
-    inlineMapRef.current?.animateToRegion?.(targetRegion, 450);
-    fullMapRef.current?.animateToRegion?.(targetRegion, 450);
-    setTimeout(() => {
-      inlineMarkerRefs.current.__user__?.showCallout?.();
-      fullMarkerRefs.current.__user__?.showCallout?.();
-    }, 300);
+    const perms = await ProfileAPI.getPermissions();
+    if (!locationGranted || !perms.locationAllowed || !userCoords) {
+      setLocationPromptAction({ type: 'recenter' });
+      return;
+    }
+    panToUserCoords(userCoords);
   };
 
   const resetNorthOrientation = () => {
@@ -643,6 +690,20 @@ export function MapViewSection({ onSelectFacility }) {
           )}
         </View>
       </Modal>
+
+      {/* Permission Popup when Location is OFF and user clicks Locate Me or Directions */}
+      <Popup
+        visible={!!locationPromptAction}
+        icon={MapPin}
+        title="Allow Location Access?"
+        message="Location access is currently turned off. Would you like to enable location access so GabayMed can find your current location?"
+        actionLabel={locatingBusy ? 'Locating...' : 'Allow'}
+        actionLoading={locatingBusy}
+        onAction={handleConfirmLocationPopup}
+        secondaryLabel="Deny"
+        onSecondary={() => setLocationPromptAction(null)}
+        onRequestClose={() => setLocationPromptAction(null)}
+      />
     </>
   );
 }

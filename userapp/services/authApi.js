@@ -66,6 +66,13 @@ const AuthAPI = {
   login: (email, password) => post('patient-login', { email, password }),
   refresh: refreshToken => post('patient-session', { refresh_token: refreshToken }),
   completeOnboarding: (token, consents) => post('patient-onboarding', consents, token),
+  getProfile: token => post('patient-profile', { action: 'get' }, token),
+  updateProfile: (token, payload) => post('patient-profile', { ...payload, action: 'update' }, token),
+  updateMedical: (token, payload) => post('patient-profile', { ...payload, action: 'update_medical' }, token),
+  updateAvatar: (token, avatar_url) => post('patient-profile', { action: 'update_avatar', avatar_url }, token),
+  updateConsents: (token, payload) => post('patient-profile', { ...payload, action: 'update_consents' }, token),
+  deleteAccount: (token, payload) => post('patient-profile', { ...payload, action: 'delete_account' }, token),
+  clearMedicalField: (token, field) => post('patient-profile', { action: 'clear_medical', field }, token),
   resetPassword: payload => post('patient-reset-password', payload),
   logout: token => post('patient-logout', {}, token),
 };

@@ -55,7 +55,7 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}${'*'.repeat(Math.min(5, local.length - 2))}@${domain}`;
 }
 
-async function defaultSendMail({ to, subject, code, purpose }) {
+async function defaultSendMail({ to, subject, code, purpose, context }) {
   const user = (process.env.GMAIL_USER || SENDER_EMAIL).trim();
   const rawPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
   if (!rawPass) {
@@ -70,12 +70,24 @@ async function defaultSendMail({ to, subject, code, purpose }) {
     auth: { user, pass: rawPass },
   });
 
-  const actionTitle = purpose === 'register' ? 'Confirm your GabayMed Registration' : 'Reset your GabayMed Password';
+  let actionTitle = 'Confirm your GabayMed Registration';
+  let actionDesc = 'complete your account registration';
+  if (context === 'delete_account') {
+    actionTitle = 'Confirm GabayMed Account Deletion';
+    actionDesc = 'confirm the permanent deletion of your GabayMed account';
+  } else if (context === 'email_change') {
+    actionTitle = 'Verify your new GabayMed Email';
+    actionDesc = 'verify and update your email address';
+  } else if (purpose === 'reset') {
+    actionTitle = 'Reset your GabayMed Password';
+    actionDesc = 'reset your password';
+  }
+
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 16px;">
       <h2 style="color: #4C82F7; margin-top: 0;">GabayMed Verification Code</h2>
       <p style="color: #334155; font-size: 14px; line-height: 1.5;">
-        Use the One-Time Password (OTP) below to ${purpose === 'register' ? 'complete your account registration' : 'reset your password'}.
+        Use the One-Time Password (OTP) below to ${actionDesc}.
         This code expires in <strong>5 minutes</strong>.
       </p>
       <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">

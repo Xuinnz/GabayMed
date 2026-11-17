@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
+import ProfileAPI from './profileApi';
 
 function resolveApiUrl() {
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -102,18 +103,27 @@ export function formatDistance(km) {
 
 const MapAPI = {
   /**
-   * Requests foreground location permission from the user.
-   * If denied or location services are disabled, returns `{ granted: false, coords: null }`
+   * Requests foreground location permission from the user, respecting the in-app Location Access toggle.
+   * If disabled in Settings or denied, returns `{ granted: false, coords: null }`
    * so the map displays only the registered clinics without a user marker.
    */
-  async requestUserLocation() {
+  async requestUserLocation({ forceEnable = false } = {}) {
     try {
+      const perms = await ProfileAPI.getPermissions();
+      if (!forceEnable && perms.locationAllowed === false) {
+        return { granted: false, disabledInApp: true, coords: null };
+      }
+
       let perm = await Location.getForegroundPermissionsAsync();
       if (perm.status !== 'granted' && perm.canAskAgain !== false) {
         perm = await Location.requestForegroundPermissionsAsync();
       }
       if (perm.status !== 'granted') {
         return { granted: false, coords: null };
+      }
+
+      if (forceEnable) {
+        await ProfileAPI.setPermissions({ locationAllowed: true });
       }
 
       // Try last known position first for speed, then current position

@@ -154,3 +154,73 @@ test('OTP send, verify, and single-use token enforcement work end-to-end', async
   assert.deepEqual(regOk, { success: true });
 });
 
+test('profile CRUD validates input, updates profile, syncs patients, and supports clearing medical fields', async () => {
+  const a = admin({
+    profile: {
+      id: 'user-id',
+      first_name: 'Maria',
+      last_name: 'Santos',
+      full_name: 'Maria Santos',
+      email: 'maria@example.com',
+      phone_number: '+639171234567',
+      date_of_birth: '1999-04-15',
+      gender: 'Female',
+      city_municipality: 'Quezon City',
+      province: 'Metro Manila',
+      blood_type: 'O+',
+      allergies: 'Penicillin',
+      medical_history: 'Asthma',
+    },
+  });
+
+  // Read
+  const readRes = await patient.managePatientProfile(a, 'good', { action: 'get' });
+  assert.equal(readRes.profile.first_name, 'Maria');
+  assert.equal(readRes.profile.gender, 'Female');
+
+  // Invalid update is rejected with field errors
+  await assert.rejects(
+    patient.managePatientProfile(a, 'good', {
+      action: 'update',
+      first_name: '',
+      last_name: 'Santos',
+      date_of_birth: 'invalid-date',
+      gender: 'Female',
+      phone_number: '123',
+      city_municipality: 'Quezon City',
+      province: 'Metro Manila',
+    }),
+    e => e.status === 400 && !!e.fields
+  );
+
+  // Valid update
+  const updateRes = await patient.managePatientProfile(a, 'good', {
+    action: 'update',
+    first_name: 'Maria',
+    middle_name: 'Clara',
+    last_name: 'Santos',
+    date_of_birth: '1999-04-15',
+    gender: 'Female',
+    phone_number: '09171234567',
+    street_address: '123 Katipunan Ave',
+    barangay: 'Loyola Heights',
+    city_municipality: 'Quezon City',
+    province: 'Metro Manila',
+    zip_code: '1108',
+    blood_type: 'O+',
+    allergies: 'Penicillin, Peanuts',
+    medical_history: 'Asthma',
+    avatar_url: 'preset:female-1',
+  });
+  assert.equal(updateRes.profile.first_name, 'Maria');
+  assert.ok(a.state.updates.length >= 1);
+
+  // Clear medical field (Delete)
+  const clearRes = await patient.managePatientProfile(a, 'good', {
+    action: 'clear_medical',
+    field: 'allergies',
+  });
+  assert.ok(clearRes.profile);
+});
+
+

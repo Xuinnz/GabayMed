@@ -10,8 +10,9 @@ const routes = {
   '/api/providers': providerHandler, '/api/first-password': firstPasswordHandler, '/api/login': loginHandler,
   '/api/patient-otp': patientAuth.otp, '/api/patient-register': patientAuth.register,
   '/api/patient-login': patientAuth.login, '/api/patient-session': patientAuth.session,
-  '/api/patient-onboarding': patientAuth.onboarding, '/api/patient-reset-password': patientAuth.resetPassword,
-  '/api/patient-logout': patientAuth.logout, '/api/facilities-map': facilitiesMapHandler
+  '/api/patient-onboarding': patientAuth.onboarding, '/api/patient-profile': patientAuth.profile,
+  '/api/patient-reset-password': patientAuth.resetPassword, '/api/patient-logout': patientAuth.logout,
+  '/api/facilities-map': facilitiesMapHandler
 };
 
 function createServer() {
@@ -25,7 +26,7 @@ function createServer() {
       let body = '';
       for await (const chunk of req) {
         body += chunk;
-        if (Buffer.byteLength(body) > 32768) return res.status(413).json({ error: 'Request is too large.' });
+        if (Buffer.byteLength(body) > 2 * 1024 * 1024) return res.status(413).json({ error: 'Request is too large.' });
       }
       try { req.body = body ? JSON.parse(body) : {}; }
       catch { return res.status(400).json({ error: 'Invalid JSON.' }); }

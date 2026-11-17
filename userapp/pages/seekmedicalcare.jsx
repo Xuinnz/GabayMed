@@ -6,7 +6,7 @@ import { MapViewSection } from '../components/map-view-section';
 import { AppointmentBooking } from '../components/appointment';
 import BrowseAPI from '../services/browseApi';
 
-export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
+export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenProfile }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [bookingFacility, setBookingFacility] = useState(null); // ADD THIS: Separate state for booking
   const [showAppointmentBooking, setShowAppointmentBooking] = useState(false);
@@ -65,7 +65,7 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications }) {
 
   return (
     <View style={styles.container}>
-      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
+      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} onOpenProfile={onOpenProfile} />
 
       <ScrollView style={styles.content}>
         <View style={styles.section}>

@@ -7,6 +7,8 @@ const {
 
 // Columns added by security/patient-accounts.sql.
 const PROFILE_COLUMNS = 'id, first_name, middle_name, last_name, name_suffix, full_name, email, onboarding_completed_at';
+const FULL_PROFILE_COLUMNS =
+  'id, first_name, middle_name, last_name, name_suffix, full_name, email, phone_number, date_of_birth, gender, street_address, barangay, city_municipality, province, zip_code, address, blood_type, allergies, medical_history, avatar_url, insurance_consent, data_sharing_consent, onboarding_completed_at';
 const NAME = /^\p{L}[\p{L}\p{M} .'-]*$/u;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUFFIXES = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
@@ -173,7 +175,7 @@ async function handlePatientOtp({ admin, secret, sendMail = defaultSendMail }, b
       throw Object.assign(new RequestError(429, msg), { retryAfter: wait, code: `otp_${reason}` });
     }
 
-    await sendMail({ to: email, code, purpose });
+    await sendMail({ to: email, code, purpose, context: body.context });
     return {
       sent: true,
       email,
@@ -370,7 +372,366 @@ async function logoutPatient(admin, token) {
   return { success: true };
 }
 
+function calculateAgeYears(dobString) {
+  if (!dobString || !/^\d{4}-\d{2}-\d{2}/.test(String(dobString))) return null;
+  const [y, m, d] = String(dobString).slice(0, 10).split('-').map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() + 1 - m;
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
+  return age >= 0 ? age : null;
+}
+
+function mapFullProfile(row) {
+  const ageYears = calculateAgeYears(row.date_of_birth);
+  const fullName =
+    row.full_name ||
+    [row.first_name, row.middle_name, row.last_name, row.name_suffix].filter(Boolean).join(' ') ||
+    'Patient';
+  return {
+    id: row.id,
+    first_name: row.first_name || '',
+    middle_name: row.middle_name || '',
+    last_name: row.last_name || '',
+    name_suffix: row.name_suffix || '',
+    full_name: fullName,
+    email: row.email || '',
+    phone_number: row.phone_number || '',
+    date_of_birth: row.date_of_birth ? String(row.date_of_birth).slice(0, 10) : '',
+    age: ageYears != null ? String(ageYears) : 'N/A',
+    gender: row.gender || '',
+    street_address: row.street_address || '',
+    barangay: row.barangay || '',
+    city_municipality: row.city_municipality || '',
+    province: row.province || '',
+    zip_code: row.zip_code || '',
+    address:
+      row.address ||
+      [row.street_address, row.barangay, row.city_municipality, row.province, row.zip_code]
+        .filter(Boolean)
+        .join(', '),
+    blood_type: row.blood_type || '',
+    allergies: row.allergies || '',
+    medical_history: row.medical_history || '',
+    avatar_url: row.avatar_url || '',
+    insurance_consent: !!row.insurance_consent,
+    data_sharing_consent: !!row.data_sharing_consent,
+    onboardingCompleted: !!row.onboarding_completed_at,
+  };
+}
+
+function validateProfileUpdateInput(body) {
+  if (!body || typeof body !== 'object') {
+    throw new RequestError(400, 'Profile update details are required.');
+  }
+  const text = key => (typeof body[key] === 'string' ? body[key].trim().replace(/\s+/g, ' ') : '');
+  const errors = {};
+
+  const name = (key, label, required) => {
+    const value = text(key);
+    if (!value) {
+      if (required) errors[key] = `${label} is required.`;
+      return null;
+    }
+    if (value.length > 50 || !NAME.test(value)) {
+      errors[key] = `Enter a valid ${label.toLowerCase()}.`;
+    }
+    return value;
+  };
+
+  const first_name = name('first_name', 'First name', true);
+  const middle_name = name('middle_name', 'Middle name', false);
+  const last_name = name('last_name', 'Last name', true);
+  const name_suffix = text('name_suffix') || null;
+  if (name_suffix && !SUFFIXES.includes(name_suffix)) {
+    errors.name_suffix = 'Choose a valid name extension.';
+  }
+
+  const date_of_birth = normalizeBirthdate(body.date_of_birth);
+  if (!date_of_birth) {
+    errors.date_of_birth = 'Please select a valid date of birth.';
+  }
+
+  const gender = text('gender') || null;
+  if (!gender || !GENDERS.includes(gender)) {
+    errors.gender = 'Please select your gender.';
+  }
+
+  const phone_number = normalizeMobile(body.phone_number ?? body.mobile_number ?? body.phone);
+  if (!phone_number) {
+    errors.phone_number = 'Enter a valid Philippine mobile number (9XX XXX XXXX).';
+  }
+
+  const street_address = text('street_address') || null;
+  const barangay = text('barangay') || null;
+  const city_municipality = text('city_municipality') || null;
+  const province = text('province') || null;
+  const zip_code = text('zip_code') || null;
+  if (!city_municipality) errors.city_municipality = 'City or municipality is required.';
+  if (!province) errors.province = 'Province is required.';
+  if (zip_code && !/^\d{4}$/.test(zip_code)) {
+    errors.zip_code = 'Enter a valid 4-digit Philippine ZIP code.';
+  }
+
+  const address =
+    [street_address, barangay, city_municipality, province, zip_code].filter(Boolean).join(', ') ||
+    text('address') ||
+    null;
+
+  const blood_type = text('blood_type') || null;
+  if (blood_type && !BLOOD_TYPES.includes(blood_type)) {
+    errors.blood_type = 'Choose a valid blood type.';
+  }
+
+  const allergies = text('allergies') ? text('allergies').slice(0, 500) : null;
+  const medical_history = text('medical_history') ? text('medical_history').slice(0, 1000) : null;
+  const avatar_url = typeof body.avatar_url === 'string' && body.avatar_url.trim()
+    ? body.avatar_url.trim().slice(0, 1500000)
+    : null;
+
+  if (Object.keys(errors).length) {
+    throw Object.assign(new RequestError(400, Object.values(errors)[0]), { fields: errors });
+  }
+
+  const full_name = [first_name, middle_name, last_name, name_suffix].filter(Boolean).join(' ');
+  return {
+    first_name,
+    middle_name,
+    last_name,
+    name_suffix,
+    full_name,
+    date_of_birth,
+    gender,
+    phone_number,
+    street_address,
+    barangay,
+    city_municipality,
+    province,
+    zip_code,
+    address,
+    blood_type,
+    allergies,
+    medical_history,
+    avatar_url,
+  };
+}
+
+/**
+ * Handles full CRUD on the signed-in patient's profile
+ * (`action: 'get' | 'update' | 'update_avatar' | 'update_medical' | 'update_consents' | 'clear_medical'`).
+ * Also syncs updated demographic & medical details to any linked `patients` rows across facilities.
+ */
+async function managePatientProfile(admin, token, body = {}, { secret } = {}) {
+  const user = await verifiedUser(admin, token);
+  const action = body?.action || 'get';
+
+  if (action === 'get') {
+    const res = await admin.from('profiles').select(FULL_PROFILE_COLUMNS).eq('id', user.id).maybeSingle();
+    if (res.error) throw new RequestError(503, 'Could not load your profile right now.');
+    if (!res.data) throw new RequestError(404, 'Patient profile not found.');
+    return { profile: mapFullProfile(res.data) };
+  }
+
+  if (action === 'clear_medical') {
+    const field = body.field;
+    const patch =
+      field === 'allergies'
+        ? { allergies: null }
+        : field === 'medical_history'
+          ? { medical_history: null }
+          : { blood_type: null, allergies: null, medical_history: null };
+    const updated = await admin
+      .from('profiles')
+      .update(patch)
+      .eq('id', user.id)
+      .select(FULL_PROFILE_COLUMNS)
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      throw new RequestError(503, 'Could not update your medical record.');
+    }
+    return { profile: mapFullProfile(updated.data) };
+  }
+
+  if (action === 'update_avatar') {
+    const avatar_url =
+      typeof body.avatar_url === 'string' && body.avatar_url.trim()
+        ? body.avatar_url.trim().slice(0, 1500000)
+        : null;
+    const updated = await admin
+      .from('profiles')
+      .update({ avatar_url })
+      .eq('id', user.id)
+      .select(FULL_PROFILE_COLUMNS)
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      throw new RequestError(503, 'Could not save your profile picture.');
+    }
+    return { profile: mapFullProfile(updated.data) };
+  }
+
+  if (action === 'update_consents') {
+    const patch = {};
+    if (typeof body.insurance_consent === 'boolean') {
+      patch.insurance_consent = body.insurance_consent;
+    }
+    if (typeof body.data_sharing_consent === 'boolean') {
+      patch.data_sharing_consent = body.data_sharing_consent;
+    }
+    const updated = await admin
+      .from('profiles')
+      .update(patch)
+      .eq('id', user.id)
+      .select(FULL_PROFILE_COLUMNS)
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      throw new RequestError(503, 'Could not save your permission settings.');
+    }
+    return { profile: mapFullProfile(updated.data) };
+  }
+
+  if (action === 'delete_account') {
+    const targetEmail = (user.email || body.email || '').trim().toLowerCase();
+    if (!targetEmail) {
+      throw new RequestError(400, 'Could not determine account email for verification.');
+    }
+    await consumeVerifiedOtp(admin, secret, 'register', targetEmail, body.otp_token);
+
+    try {
+      await admin
+        .from('patients')
+        .update({ profile_id: null })
+        .eq('profile_id', user.id);
+    } catch {}
+
+    const delProfile = await admin.from('profiles').delete().eq('id', user.id);
+    if (delProfile.error) {
+      throw new RequestError(503, 'Could not delete your profile right now. Please try again.');
+    }
+
+    if (admin.auth?.admin?.deleteUser) {
+      const delAuth = await admin.auth.admin.deleteUser(user.id);
+      if (delAuth?.error) {
+        throw new RequestError(503, 'Could not delete your account login right now.');
+      }
+    }
+
+    return { deleted: true };
+  }
+
+  if (action === 'update_medical') {
+    const blood_type =
+      typeof body.blood_type === 'string' && BLOOD_TYPES.includes(body.blood_type.trim())
+        ? body.blood_type.trim()
+        : null;
+    const allergies =
+      typeof body.allergies === 'string' && body.allergies.trim()
+        ? body.allergies.trim().slice(0, 500)
+        : null;
+    const medical_history =
+      typeof body.medical_history === 'string' && body.medical_history.trim()
+        ? body.medical_history.trim().slice(0, 1000)
+        : null;
+
+    const updated = await admin
+      .from('profiles')
+      .update({ blood_type, allergies, medical_history })
+      .eq('id', user.id)
+      .select(FULL_PROFILE_COLUMNS)
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      throw new RequestError(503, 'Could not save your medical records.');
+    }
+    try {
+      await admin
+        .from('patients')
+        .update({ medical_history })
+        .eq('profile_id', user.id);
+    } catch {}
+    return { profile: mapFullProfile(updated.data) };
+  }
+
+  // action === 'update' (Personal & Demographics, with optional OTP-verified email change)
+  const updates = validateProfileUpdateInput(body);
+  const requestedEmail =
+    typeof body.new_email === 'string' ? body.new_email.trim().toLowerCase() : '';
+  const currentEmail = (user.email || '').trim().toLowerCase();
+
+  if (requestedEmail && requestedEmail !== currentEmail) {
+    if (!EMAIL.test(requestedEmail) || requestedEmail.length > 254) {
+      throw Object.assign(new RequestError(400, 'Enter a valid email address.'), {
+        fields: { email: 'Enter a valid email address.' },
+      });
+    }
+    const existingEmail = await admin
+      .from('profiles')
+      .select('id')
+      .ilike('email', requestedEmail)
+      .neq('id', user.id)
+      .maybeSingle();
+    if (existingEmail.data?.id) {
+      throw Object.assign(
+        new RequestError(409, 'That email address is already registered to another account.'),
+        { fields: { email: 'This email is already in use.' } }
+      );
+    }
+
+    await consumeVerifiedOtp(admin, secret, 'register', requestedEmail, body.otp_token);
+
+    if (admin.auth?.admin?.updateUserById) {
+      const authUpdate = await admin.auth.admin.updateUserById(user.id, {
+        email: requestedEmail,
+        email_confirm: true,
+      });
+      if (authUpdate?.error) {
+        if (['email_exists', 'user_already_exists'].includes(authUpdate.error.code)) {
+          throw Object.assign(
+            new RequestError(409, 'That email address is already registered to another account.'),
+            { fields: { email: 'This email is already in use.' } }
+          );
+        }
+        throw new RequestError(503, 'Could not update your login email right now. Please try again.');
+      }
+    }
+    updates.email = requestedEmail;
+  }
+
+  const saved = await admin
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id)
+    .select(FULL_PROFILE_COLUMNS)
+    .maybeSingle();
+  if (saved.error || !saved.data) {
+    throw new RequestError(503, 'Could not save your profile changes. Please try again.');
+  }
+
+  // Keep linked hospital `patients` rows in sync so healthcare providers always see the latest record
+  const ageYears = calculateAgeYears(updates.date_of_birth);
+  try {
+    const patientSync = {
+      full_name: updates.full_name,
+      first_name: updates.first_name,
+      middle_name: updates.middle_name,
+      last_name: updates.last_name,
+      phone_number: updates.phone_number,
+      address: updates.address,
+      date_of_birth: updates.date_of_birth,
+      gender: updates.gender,
+      age: ageYears,
+      medical_history: updates.medical_history,
+    };
+    if (updates.email) patientSync.email = updates.email;
+    await admin
+      .from('patients')
+      .update(patientSync)
+      .eq('profile_id', user.id);
+  } catch {}
+
+  return { profile: mapFullProfile(saved.data) };
+}
+
 module.exports = {
   registrationInput, normalizeMobile, passwordProblem, handlePatientOtp, registerPatient,
-  resetPatientPassword, loginPatient, refreshPatientSession, completeOnboarding, logoutPatient, patientAccount, rejected
+  resetPatientPassword, loginPatient, refreshPatientSession, completeOnboarding,
+  validateProfileUpdateInput, managePatientProfile, logoutPatient, patientAccount, rejected
 };

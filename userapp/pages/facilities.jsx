@@ -6,7 +6,7 @@ import { AppointmentBooking } from '../components/appointment';
 import { GradientButton, GradientText, GradientIcon } from '../components/ui/gradient-button';
 import FacilitiesAPI from '../services/facilitiesApi';
 
-export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
+export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfile }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showAllBalances, setShowAllBalances] = useState(false);
   const [showAllSchedules, setShowAllSchedules] = useState(false);
@@ -177,7 +177,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
+        <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} onOpenProfile={onOpenProfile} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0ea5e9" />
           <Text style={styles.loadingText}>Loading facilities...</Text>
@@ -188,7 +188,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications }) {
 
   return (
     <View style={styles.container}>
-      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} />
+      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} onOpenProfile={onOpenProfile} />
 
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.section}>
