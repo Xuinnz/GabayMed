@@ -9,6 +9,147 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+export const APP_LANGUAGES = [
+  { id: 'en', label: 'English', nativeLabel: 'English' },
+  { id: 'fil', label: 'Filipino', nativeLabel: 'Tagalog' },
+];
+
+export const THEME_MODES = [
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'system', label: 'System' },
+];
+
+export const TEXT_SIZES = [
+  { id: 'small', label: 'Compact', scale: 0.92 },
+  { id: 'medium', label: 'Standard', scale: 1.0 },
+  { id: 'large', label: 'Large', scale: 1.12 },
+];
+
+const TRANSLATIONS = {
+  en: {
+    settingsTitle: 'Settings',
+    tapToViewProfile: 'Tap to view & update your personal and medical records',
+    appPreferencesHeader: 'Language & Display Preferences',
+    languageTitle: 'App Language',
+    languageDesc: 'Choose your preferred language across GabayMed',
+    themeTitle: 'Appearance & Theme',
+    themeDesc: 'Switch between Light, Dark, or System display mode',
+    textSizeTitle: 'Text Size',
+    textSizeDesc: 'Adjust reading size for comfortable viewing',
+    highContrastTitle: 'High Contrast Display',
+    highContrastDesc: 'Increase text and border contrast for better visibility',
+    notificationsHeader: 'Notification Preferences',
+    allNotificationsTitle: 'Allow Push & In-App Notifications',
+    allNotificationsDesc: 'Master switch for all GabayMed alerts and updates',
+    notifyAppointmentsTitle: 'Appointment Reminders',
+    notifyAppointmentsDesc: 'Upcoming consultations, confirmations, and schedule changes',
+    notifyBillingTitle: 'Billing & Payment Alerts',
+    notifyBillingDesc: 'Ledger charges, due dates, and payment receipts',
+    notifyInsuranceTitle: 'Insurance & Coverage Updates',
+    notifyInsuranceDesc: 'PhilHealth & HMO policy renewals and claim status',
+    notifyMessagesTitle: 'Direct Facility Messages',
+    notifyMessagesDesc: 'New chat messages and replies from healthcare providers',
+    notifyPromosTitle: 'Promotions & Health Tips',
+    notifyPromosDesc: 'Partner hospital offers, check-up packages, and advisories',
+    permissionsHeader: 'Permissions & Privacy',
+    insuranceConsentTitle: 'Insurance Data Processing',
+    insuranceConsentDesc: 'Estimate real-time PhilHealth & HMO coverage deductions',
+    dataSharingTitle: 'Hospital Data Sharing',
+    dataSharingDesc: 'Share digital medical forms with partner facilities you choose',
+    locationTitle: 'Location Access',
+    locationDesc: 'Enable smart hospital routing and nearby facility suggestions',
+    generalHeader: 'General & Legal',
+    terms: 'Terms & Conditions',
+    privacy: 'Privacy Policy',
+    history: 'History',
+    help: 'Help & Support',
+    deleteAccount: 'Delete Account',
+    signOut: 'Sign Out',
+  },
+  fil: {
+    settingsTitle: 'Mga Setting',
+    tapToViewProfile: 'I-tap upang tingnan at i-update ang iyong rekord medikal',
+    appPreferencesHeader: 'Wika at Display',
+    languageTitle: 'Wika ng App',
+    languageDesc: 'Piliin ang gustong wika sa paggamit ng GabayMed',
+    themeTitle: 'Hitsura at Tema',
+    themeDesc: 'Pumili sa Light, Dark, o System display mode',
+    textSizeTitle: 'Laki ng Teksto',
+    textSizeDesc: 'I-adjust ang laki ng letra para sa mas malinaw na pagbasa',
+    highContrastTitle: 'High Contrast Display',
+    highContrastDesc: 'Patitingkarin ang kulay at linya para sa mas malinaw na screen',
+    notificationsHeader: 'Mga Abiso (Notifications)',
+    allNotificationsTitle: 'Payagan ang Lahat ng Abiso',
+    allNotificationsDesc: 'Pangkalahatang switch para sa lahat ng alerto ng GabayMed',
+    notifyAppointmentsTitle: 'Paalala sa Appointment',
+    notifyAppointmentsDesc: 'Mga nakatakdang konsultasyon, kumpirmasyon, at pagbabago',
+    notifyBillingTitle: 'Alerto sa Bayarin at Billing',
+    notifyBillingDesc: 'Mga singil sa ledger, takdang araw ng bayad, at resibo',
+    notifyInsuranceTitle: 'Update sa Insurance at HMO',
+    notifyInsuranceDesc: 'Pag-renew ng PhilHealth o HMO at status ng claim',
+    notifyMessagesTitle: 'Mensahe mula sa Pasilidad',
+    notifyMessagesDesc: 'Mga bagong chat at sagot mula sa doktor o ospital',
+    notifyPromosTitle: 'Promosyon at Payong Pangkalusugan',
+    notifyPromosDesc: 'Diskwento sa partner na ospital at mga health tip',
+    permissionsHeader: 'Pahintulot at Privacy',
+    insuranceConsentTitle: 'Pagproseso ng Insurance Data',
+    insuranceConsentDesc: 'Kalkulahin ang bawas mula sa PhilHealth at HMO',
+    dataSharingTitle: 'Pagbahagi ng Data sa Ospital',
+    dataSharingDesc: 'Ibahagi ang iyong digital medical form sa napiling ospital',
+    locationTitle: 'Access sa Lokasyon',
+    locationDesc: 'Maghanap ng pinakamalapit na ospital at ruta sa mapa',
+    generalHeader: 'Pangkalahatan at Legal',
+    terms: 'Mga Tuntunin at Kondisyon',
+    privacy: 'Patakaran sa Privacy',
+    history: 'Kasaysayan (History)',
+    help: 'Tulong at Suporta',
+    deleteAccount: 'Burahin ang Account',
+    signOut: 'Mag-sign Out',
+  },
+};
+
+export function getAppTranslations(language = 'en') {
+  return TRANSLATIONS[language] || TRANSLATIONS.en;
+}
+
+export function getDisplayConfig(perms = {}) {
+  const isDark = perms?.themeMode === 'dark';
+  const highContrast = !!perms?.highContrast;
+  const textSizeObj = TEXT_SIZES.find(t => t.id === perms?.textSize) || TEXT_SIZES[1];
+  const fontScale = textSizeObj.scale;
+
+  if (isDark) {
+    return {
+      isDark: true,
+      highContrast,
+      fontScale,
+      bg: highContrast ? '#020617' : '#0f172a',
+      cardBg: highContrast ? '#0f172a' : '#1e293b',
+      subCardBg: '#334155',
+      textPrimary: '#f8fafc',
+      textSecondary: highContrast ? '#e2e8f0' : '#94a3b8',
+      border: highContrast ? '#475569' : '#334155',
+      divider: '#334155',
+      accent: '#38bdf8',
+    };
+  }
+
+  return {
+    isDark: false,
+    highContrast,
+    fontScale,
+    bg: '#ffffff',
+    cardBg: '#ffffff',
+    subCardBg: '#f8fafc',
+    textPrimary: highContrast ? '#000000' : '#1f2937',
+    textSecondary: highContrast ? '#1e293b' : '#6b7280',
+    border: highContrast ? '#94a3b8' : '#f3f4f6',
+    divider: highContrast ? '#cbd5e1' : '#f3f4f6',
+    accent: '#0ea5e9',
+  };
+}
+
 function formatReadableDate(iso) {
   if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(String(iso))) return 'Not set';
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -213,6 +354,35 @@ const ProfileAPI = {
         typeof stored.notificationsAllowed === 'boolean'
           ? stored.notificationsAllowed
           : true,
+      // Specific notification category toggles
+      notifyAppointments:
+        typeof stored.notifyAppointments === 'boolean'
+          ? stored.notifyAppointments
+          : true,
+      notifyBilling:
+        typeof stored.notifyBilling === 'boolean'
+          ? stored.notifyBilling
+          : true,
+      notifyInsurance:
+        typeof stored.notifyInsurance === 'boolean'
+          ? stored.notifyInsurance
+          : true,
+      notifyMessages:
+        typeof stored.notifyMessages === 'boolean'
+          ? stored.notifyMessages
+          : true,
+      notifyPromos:
+        typeof stored.notifyPromos === 'boolean'
+          ? stored.notifyPromos
+          : true,
+      // Application Language & Display Preferences
+      language: stored.language === 'fil' ? 'fil' : 'en',
+      themeMode: stored.themeMode || 'light',
+      textSize: stored.textSize || 'medium',
+      highContrast:
+        typeof stored.highContrast === 'boolean'
+          ? stored.highContrast
+          : false,
     };
     cachedPermissions = resolved;
     return resolved;

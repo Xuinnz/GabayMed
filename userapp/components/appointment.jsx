@@ -16,9 +16,14 @@ import {
   Stethoscope,
   CheckCircle,
   MapPin,
-  CalendarCheck
+  CalendarCheck,
+  Baby,
+  Eye,
+  Pill,
+  Wind,
+  Activity
 } from 'lucide-react-native';
-import AppointmentAPI from '../services/appointmentApi';
+import AppointmentAPI, { STANDARD_MEDICAL_SERVICES } from '../services/appointmentApi';
 import MapAPI from '../services/mapApi';
 
 // ─── Helper: format "YYYY-MM-DD" → "Thursday, Nov 27, 2026"
@@ -37,14 +42,14 @@ const MONTH_NAMES = [
   'July','August','September','October','November','December'
 ];
 
-export function AppointmentBooking({ onClose, visible = true, initialService = null, facilityId: propFacilityId }) {
+export function AppointmentBooking({ onClose, onBooked, visible = true, initialService = null, facilityId: propFacilityId }) {
   // If no facilityId prop is provided, the user must pick a facility first
   const needsFacilityPick = !propFacilityId;
   const [activeFacilityId, setActiveFacilityId] = useState(propFacilityId || null);
-  const facilityId = activeFacilityId;
+  const facilityId = activeFacilityId || propFacilityId || null;
 
   const getInitialStep = () => {
-    if (needsFacilityPick && !activeFacilityId) return 'facility';
+    if (!propFacilityId && !activeFacilityId) return 'facility';
     return initialService ? 'provider' : 'service';
   };
 
@@ -75,11 +80,18 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
   // Static UI Config for Services
   const serviceUIConfig = {
     "General Check-up": { icon: Hospital, colors: ['#66BAFF', '#83BFF0'] },
+    "General Physician": { icon: Stethoscope, colors: ['#66BAFF', '#83BFF0'] },
     "Neurologist": { icon: Brain, colors: ['#66BAFF', '#83BFF0'] },
     "Psychiatric": { icon: User, colors: ['#66BAFF', '#83BFF0'] },
     "Cardiologist": { icon: HeartPulse, colors: ['#66BAFF', '#83BFF0'] },
     "Orthopedic": { icon: Bone, colors: ['#66BAFF', '#83BFF0'] },
     "Dermatologist": { icon: Droplet, colors: ['#66BAFF', '#83BFF0'] },
+    "Pediatrician": { icon: Baby, colors: ['#66BAFF', '#83BFF0'] },
+    "Ophthalmologist": { icon: Eye, colors: ['#66BAFF', '#83BFF0'] },
+    "ENT Specialist": { icon: User, colors: ['#66BAFF', '#83BFF0'] },
+    "Pulmonologist": { icon: Wind, colors: ['#66BAFF', '#83BFF0'] },
+    "Dentist": { icon: Pill, colors: ['#66BAFF', '#83BFF0'] },
+    "Hematologist": { icon: Activity, colors: ['#66BAFF', '#83BFF0'] },
     "default": { icon: Stethoscope, colors: ['#66BAFF', '#83BFF0'] }
   };
 
@@ -143,12 +155,43 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
            (calendarMonth.year === maxDate.getFullYear() && calendarMonth.month < maxDate.getMonth());
   }, [calendarMonth]);
 
+  // Sync propFacilityId and initialService when modal opens
+  useEffect(() => {
+    if (visible) {
+      if (propFacilityId) {
+        setActiveFacilityId(propFacilityId);
+        if (initialService) {
+          setSelectedService(initialService);
+          setSelectedServiceName(initialService);
+          setStep('provider');
+        } else {
+          setStep(prev => (prev === 'facility' ? 'service' : prev));
+        }
+      } else if (!activeFacilityId) {
+        setStep('facility');
+      }
+    } else {
+      setActiveFacilityId(propFacilityId || null);
+      setStep(propFacilityId ? (initialService ? 'provider' : 'service') : 'facility');
+      setSelectedService(initialService);
+      setSelectedServiceName(initialService || '');
+      setSelectedProvider(null);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      setBookingResult(null);
+      setBookedSlots([]);
+      setAvailableFacilities([]);
+      const now = new Date();
+      setCalendarMonth({ year: now.getFullYear(), month: now.getMonth() });
+    }
+  }, [visible, propFacilityId, initialService]);
+
   // 1. Load data on mount depending on whether facility is pre-selected
   useEffect(() => {
     if (visible && facilityId) {
       loadServices();
       loadFacilityName();
-    } else if (visible && needsFacilityPick) {
+    } else if (visible && !facilityId) {
       loadFacilities();
     }
   }, [visible, facilityId]);
@@ -167,24 +210,6 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
     }
   }, [step, selectedProvider, selectedDate]);
 
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!visible) {
-      setActiveFacilityId(propFacilityId || null);
-      setStep(needsFacilityPick ? 'facility' : (initialService ? "provider" : "service"));
-      setSelectedService(initialService);
-      setSelectedServiceName(initialService || "");
-      setSelectedProvider(null);
-      setSelectedDate(null);
-      setSelectedTime(null);
-      setBookingResult(null);
-      setBookedSlots([]);
-      setAvailableFacilities([]);
-      const now = new Date();
-      setCalendarMonth({ year: now.getFullYear(), month: now.getMonth() });
-    }
-  }, [visible]);
-
   const loadFacilityName = async () => {
     const name = await AppointmentAPI.getFacilityName(facilityId);
     setFacilityName(name);
@@ -195,17 +220,37 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
     try {
       const locRes = await MapAPI.requestUserLocation();
       const userCoords = locRes.granted ? locRes.coords : null;
-      const facilities = await MapAPI.getFacilitiesLocations(userCoords);
-      // Only show GabayMed-partnered facilities
-      const gabayFacilities = facilities
-        .filter(f => f.isGabay !== false)
-        .map(f => ({
-          id: f.facilityId ?? f.id,
-          name: f.name,
-          address: f.address,
-          distance: f.distanceLabel || '',
-        }));
-      setAvailableFacilities(gabayFacilities);
+      const [mapFacilities, dbFacilities] = await Promise.all([
+        MapAPI.getFacilitiesLocations(userCoords).catch(() => []),
+        AppointmentAPI.getAllFacilities().catch(() => []),
+      ]);
+
+      // Display all healthcare facilities and branches with unique React keys
+      const seenKeys = new Set();
+      const allFacilitiesList = [];
+
+      const combinedSource = [...(mapFacilities || []), ...(dbFacilities || [])];
+      for (let i = 0; i < combinedSource.length; i++) {
+        const f = combinedSource[i];
+        const rawFacId = String(f.facilityId || f.id || '').replace(/^(facility-|branch-)/, '').trim();
+        const dedupeKey = f.branchId
+          ? `branch-${f.branchId}`
+          : `facility-${rawFacId}-${(f.name || '').toLowerCase()}`;
+
+        if (seenKeys.has(dedupeKey)) continue;
+        seenKeys.add(dedupeKey);
+
+        allFacilitiesList.push({
+          key: `${dedupeKey}-${i}`,
+          id: rawFacId || f.id,
+          facilityId: rawFacId || f.id,
+          name: f.name || 'Healthcare Facility',
+          address: f.address || f.location || 'Metro Manila, Philippines',
+          distance: f.distanceLabel || f.distance || '',
+        });
+      }
+
+      setAvailableFacilities(allFacilitiesList);
     } catch (error) {
       console.error("Load facilities error:", error);
       setAvailableFacilities([]);
@@ -217,29 +262,13 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
   const loadServices = async () => {
     setLoading(true);
     try {
-      let services = await AppointmentAPI.getFacilityServices(facilityId);
-
-      if (typeof services === 'string') {
-        try {
-          if (services.startsWith('{') && services.endsWith('}')) {
-            services = services.slice(1, -1).split(',').map(s => s.replace(/"/g, '').trim());
-          } else if (services.startsWith('[') && services.endsWith(']')) {
-            services = JSON.parse(services);
-          } else {
-            services = services.split(',').map(s => s.trim());
-          }
-        } catch (e) {
-          services = [];
-        }
-      }
-
-      const validServices = Array.isArray(services)
-        ? services.filter(s => s && typeof s === 'string' && s.trim() !== '')
-        : [];
-
-      setFacilityServices(validServices.length > 0 ? validServices : ["General Check-up"]);
+      const services = await AppointmentAPI.getFacilityServices(facilityId);
+      const validServices = Array.isArray(services) && services.length > 0
+        ? services
+        : [...STANDARD_MEDICAL_SERVICES];
+      setFacilityServices(validServices);
     } catch (error) {
-      setFacilityServices(["General Check-up"]);
+      setFacilityServices([...STANDARD_MEDICAL_SERVICES]);
     } finally {
       setLoading(false);
     }
@@ -248,7 +277,16 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
   const loadProviders = async () => {
     setLoading(true);
     const data = await AppointmentAPI.getFacilityProviders(facilityId);
-    setProviders(data);
+    const seen = new Set();
+    const uniqueProviders = [];
+    (data || []).forEach((p, idx) => {
+      const pid = p.id || p.provider_id || `provider-${idx}`;
+      if (!seen.has(pid)) {
+        seen.add(pid);
+        uniqueProviders.push(p);
+      }
+    });
+    setProviders(uniqueProviders);
     setLoading(false);
   };
 
@@ -296,7 +334,13 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
   const handleSelectFacility = (facility) => {
     setActiveFacilityId(facility.id);
     setFacilityName(facility.name);
-    setStep(initialService ? "provider" : "service");
+    if (initialService) {
+      setSelectedService(initialService);
+      setSelectedServiceName(initialService);
+      setStep("provider");
+    } else {
+      setStep("service");
+    }
   };
 
   const handleSelectProvider = (provider) => {
@@ -334,6 +378,9 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
     if (result.success) {
       setBookingResult(result);
       setStep("success");
+      if (onBooked) {
+        try { onBooked(result.data); } catch {}
+      }
     } else if (result.error === 'SLOT_TAKEN') {
       Alert.alert(
         "Slot Unavailable",
@@ -345,7 +392,7 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
         }}]
       );
     } else {
-      Alert.alert("Error", "Failed to book appointment. Please try again.");
+      Alert.alert("Error", result.error || "Failed to book appointment. Please try again.");
     }
   };
 
@@ -458,9 +505,9 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                   <Text style={styles.emptyText}>No partner facilities found.</Text>
                 ) : (
                   <View style={styles.optionsList}>
-                    {availableFacilities.map((facility) => (
+                    {availableFacilities.map((facility, index) => (
                       <TouchableOpacity
-                        key={facility.id}
+                        key={facility.key || `facility-${facility.id}-${index}`}
                         onPress={() => handleSelectFacility(facility)}
                         style={styles.providerCard}
                       >
@@ -496,7 +543,7 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                     const IconComponent = ui.icon;
                     return (
                       <TouchableOpacity
-                        key={index}
+                        key={`service-${serviceName}-${index}`}
                         onPress={() => handleSelectService(serviceName)}
                         style={styles.optionCard}
                       >
@@ -520,9 +567,9 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                   <Text style={styles.emptyText}>No providers available for this facility.</Text>
                 ) : (
                   <View style={styles.optionsList}>
-                    {providers.map((provider) => (
+                    {providers.map((provider, index) => (
                       <TouchableOpacity
-                        key={provider.id || provider.provider_id}
+                        key={`provider-${provider.id || provider.provider_id || index}-${index}`}
                         onPress={() => handleSelectProvider(provider)}
                         style={styles.providerCard}
                       >
@@ -531,7 +578,9 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                         </View>
                         <View style={styles.providerInfo}>
                           <Text style={styles.providerName}>{provider.name}</Text>
-                          <Text style={styles.providerSpecialty}>{provider.specialty || 'General Physician'}</Text>
+                          <Text style={styles.providerSpecialty}>
+                            {provider.specialization || provider.specialty || 'General Physician'}
+                          </Text>
                         </View>
                         <ChevronRight size={18} color="#9ca3af" />
                       </TouchableOpacity>
@@ -707,7 +756,7 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                       <Text style={styles.confirmLabel}>Provider</Text>
                       <Text style={styles.confirmValue}>{selectedProvider?.name}</Text>
                       <Text style={styles.confirmSubvalue}>
-                        {selectedProvider?.specialty || 'General Physician'}
+                        {selectedProvider?.specialization || selectedProvider?.specialty || 'General Physician'}
                       </Text>
                     </View>
                   </View>
@@ -791,8 +840,8 @@ export function AppointmentBooking({ onClose, visible = true, initialService = n
                     <Text style={styles.successLabel}>Reference ID</Text>
                   </View>
                   <Text style={styles.successRefId}>
-                    {bookingResult.data?.id
-                      ? `#${String(bookingResult.data.id).slice(0, 8).toUpperCase()}`
+                    {(bookingResult.data?.appointment_id || bookingResult.data?.id)
+                      ? `#${String(bookingResult.data.appointment_id || bookingResult.data.id).slice(0, 8).toUpperCase()}`
                       : '#PENDING'}
                   </Text>
 

@@ -6,11 +6,18 @@ const DEFAULT_CANCELLATION_NOTICE_HOURS = 24;
 /**
  * Format ISO date string into readable date and time components
  */
-function formatAppointmentDateTime(isoString) {
+function formatAppointmentDateTime(isoString, appointmentTimeStr = '') {
   try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return { dateStr: isoString, timeStr: '' };
-    
+    let d = new Date(isoString);
+    if (isNaN(d.getTime())) return { dateStr: isoString, timeStr: appointmentTimeStr || '' };
+
+    // If appointmentTimeStr ("HH:mm:ss") is provided and isoString was date-only
+    if (appointmentTimeStr && typeof isoString === 'string' && !isoString.includes('T')) {
+      const [y, m, day] = isoString.split('-').map(Number);
+      const [hh, mm] = appointmentTimeStr.split(':').map(Number);
+      d = new Date(y, m - 1, day, hh || 0, mm || 0, 0);
+    }
+
     const dateStr = d.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -24,8 +31,22 @@ function formatAppointmentDateTime(isoString) {
     });
     return { dateStr, timeStr };
   } catch {
-    return { dateStr: isoString, timeStr: '' };
+    return { dateStr: isoString, timeStr: appointmentTimeStr || '' };
   }
+}
+
+/**
+ * Extract readable procedure/service name from joined procedure or notes
+ */
+function resolveProcedureName(apt) {
+  if (apt?.procedures?.name) return apt.procedures.name;
+  if (apt?.procedures?.description) return apt.procedures.description;
+  if (typeof apt?.notes === 'string') {
+    const match = /^Service:\s*([^.]+)\./i.exec(apt.notes.trim());
+    if (match && match[1]) return match[1].trim();
+  }
+  if (apt?.procedure_id) return `Procedure #${apt.procedure_id}`;
+  return 'General Consultation';
 }
 
 /**
@@ -88,22 +109,11 @@ async function getPatientSchedule(admin, userId, options = {}) {
   let query = admin
     .from('appointments')
     .select(`
-      appointment_id,
-      appointment_date,
-      duration,
-      status,
-      notes,
-      procedure_id,
-      provider_id,
-      facility_id,
-      patient_id,
-      created_at,
-      procedures ( procedure_id, name ),
+      *,
+      procedures ( * ),
       providers (
-        provider_id,
-        name,
-        specialization,
-        facilities ( facility_id, name, address, contact_num )
+        *,
+        facilities ( * )
       )
     `)
     .in('patient_id', patientIds)
@@ -121,7 +131,7 @@ async function getPatientSchedule(admin, userId, options = {}) {
 
   const formatted = (appointments || []).map(apt => {
     const facility = apt.providers?.facilities || {};
-    const { dateStr, timeStr } = formatAppointmentDateTime(apt.appointment_date);
+    const { dateStr, timeStr } = formatAppointmentDateTime(apt.appointment_date, apt.appointment_time);
     const policy = evaluateCancellationPolicy(apt.appointment_date, apt.status, cutoffHours, now);
 
     return {
@@ -135,13 +145,13 @@ async function getPatientSchedule(admin, userId, options = {}) {
       notes: apt.notes || '',
       facilityId: apt.facility_id || facility.facility_id,
       facilityName: facility.name || 'Medical Facility',
-      facilityAddress: facility.address || '',
+      facilityAddress: facility.address || facility.location || '',
       facilityPhone: facility.contact_num || '',
       providerId: apt.provider_id,
       providerName: apt.providers?.name || 'Assigned Provider',
-      providerSpecialty: apt.providers?.specialization || 'General Physician',
+      providerSpecialty: apt.providers?.specialization || apt.providers?.specialty || 'General Physician',
       procedureId: apt.procedure_id,
-      procedureName: apt.procedures?.name || 'General Consultation',
+      procedureName: resolveProcedureName(apt),
       cancellationPolicy: policy,
       createdAt: apt.created_at
     };
@@ -296,11 +306,253 @@ async function validateSlotAvailability(admin, { providerId, appointmentDate, du
   };
 }
 
+/**
+ * Create a patient appointment via admin client (prevents RLS issues & handles schema constraints)
+ */
+async function createPatientAppointment(admin, userId, appointmentData = {}) {
+  if (!userId) throw new RequestError(401, 'User authentication required.');
+
+  const cleanFacilityId = String(appointmentData.facilityId || '').replace(/^(facility-|branch-)/, '').trim();
+  if (!cleanFacilityId) throw new RequestError(400, 'Facility ID is required.');
+  if (!appointmentData.providerId) throw new RequestError(400, 'Provider ID is required.');
+  if (!appointmentData.date || !appointmentData.time) {
+    throw new RequestError(400, 'Appointment date and time are required.');
+  }
+
+  // 1. Parse date and time
+  let appointmentDateISO;
+  let time24Str;
+  try {
+    const [year, month, day] = String(appointmentData.date).split('-').map(Number);
+    const [timePart, modifier] = String(appointmentData.time).trim().split(' ');
+    let [hours, minutes] = timePart.split(':').map(Number);
+
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+
+    time24Str = `${String(hours).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}:00`;
+    const dateObj = new Date(year, month - 1, day, hours, minutes || 0, 0);
+    if (isNaN(dateObj.getTime())) throw new Error('Invalid date');
+    appointmentDateISO = dateObj.toISOString();
+  } catch {
+    throw new RequestError(400, 'Invalid date or time format.');
+  }
+
+  const normalizedProviderId = !isNaN(Number(appointmentData.providerId))
+    ? parseInt(appointmentData.providerId, 10)
+    : appointmentData.providerId;
+
+  // 2. Check double-booking
+  const availability = await validateSlotAvailability(admin, {
+    providerId: normalizedProviderId,
+    appointmentDate: appointmentDateISO,
+    durationMinutes: 30
+  });
+  if (!availability.available) {
+    throw Object.assign(
+      new RequestError(409, 'This time slot was just booked by another patient. Please choose a different time.'),
+      { code: 'SLOT_TAKEN' }
+    );
+  }
+
+  // 3. Resolve or create Patient record for (userId, cleanFacilityId)
+  let patientId = null;
+  const { data: existingPatients } = await admin
+    .from('patients')
+    .select('patient_id')
+    .eq('profile_id', userId)
+    .eq('facility_id', cleanFacilityId)
+    .limit(1);
+
+  if (Array.isArray(existingPatients) && existingPatients.length > 0) {
+    patientId = existingPatients[0].patient_id;
+  } else {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name, first_name, middle_name, last_name, phone_number, address, date_of_birth, gender')
+      .eq('id', userId)
+      .maybeSingle();
+
+    // Resolve a valid insurance_id (required NOT NULL in patients table)
+    let resolvedInsuranceId = appointmentData.insuranceId || null;
+    if (resolvedInsuranceId == null) {
+      try {
+        const { data: userPatIns } = await admin
+          .from('patients')
+          .select('insurance_id')
+          .eq('profile_id', userId)
+          .not('insurance_id', 'is', null)
+          .limit(1);
+        if (userPatIns?.[0]?.insurance_id != null) {
+          resolvedInsuranceId = userPatIns[0].insurance_id;
+        }
+      } catch {}
+    }
+    if (resolvedInsuranceId == null) {
+      try {
+        const { data: plans } = await admin
+          .from('insurance_plans')
+          .select('insurance_id')
+          .limit(1);
+        if (plans?.[0]?.insurance_id != null) {
+          resolvedInsuranceId = plans[0].insurance_id;
+        }
+      } catch {}
+    }
+    if (resolvedInsuranceId == null) {
+      try {
+        const { data: anyPatIns } = await admin
+          .from('patients')
+          .select('insurance_id')
+          .not('insurance_id', 'is', null)
+          .limit(1);
+        if (anyPatIns?.[0]?.insurance_id != null) {
+          resolvedInsuranceId = anyPatIns[0].insurance_id;
+        }
+      } catch {}
+    }
+
+    const firstName = profile?.first_name || 'Guest';
+    const middleName = profile?.middle_name || null;
+    const lastName = profile?.last_name || 'Patient';
+    const fullName =
+      profile?.full_name ||
+      [firstName, middleName, lastName].filter(Boolean).join(' ') ||
+      'Guest User';
+    const dob = profile?.date_of_birth || '2000-01-01';
+    const age = dob
+      ? Math.max(0, Math.abs(new Date(Date.now() - new Date(dob).getTime()).getUTCFullYear() - 1970))
+      : 25;
+
+    const patientPayload = {
+      profile_id: userId,
+      facility_id: cleanFacilityId,
+      full_name: fullName,
+      first_name: firstName,
+      middle_name: middleName,
+      last_name: lastName,
+      phone_number: profile?.phone_number || '09000000000',
+      address: profile?.address || 'Metro Manila',
+      date_of_birth: dob,
+      gender: profile?.gender || 'Prefer not to say',
+      age,
+      ...(resolvedInsuranceId != null ? { insurance_id: resolvedInsuranceId } : {}),
+      created_at: new Date().toISOString()
+    };
+
+    let { data: newPatient, error: createError } = await admin
+      .from('patients')
+      .insert([patientPayload])
+      .select('patient_id')
+      .single();
+
+    if (createError && createError.message?.includes('full_name')) {
+      const { full_name, ...withoutFullName } = patientPayload;
+      const retry = await admin
+        .from('patients')
+        .insert([withoutFullName])
+        .select('patient_id')
+        .single();
+      newPatient = retry.data;
+      createError = retry.error;
+    }
+
+    if (createError) {
+      throw new RequestError(500, 'Failed to create patient record: ' + createError.message);
+    }
+    patientId = newPatient.patient_id;
+  }
+
+  // 4. Resolve a valid procedure_id from procedures table if available
+  let resolvedProcedureId = appointmentData.procedureId || null;
+  if (!resolvedProcedureId) {
+    try {
+      const { data: procs } = await admin.from('procedures').select('*').limit(50);
+      if (Array.isArray(procs) && procs.length > 0) {
+        const svcLower = String(appointmentData.serviceName || '').toLowerCase();
+        const matched = procs.find(p => {
+          const pName = String(p.name || p.description || '').toLowerCase();
+          return pName && (pName.includes(svcLower) || svcLower.includes(pName));
+        });
+        resolvedProcedureId = (matched || procs[0]).procedure_id;
+      }
+    } catch {}
+  }
+
+  // 5. Insert Appointment with fallback for optional columns
+  const notesText = `Service: ${appointmentData.serviceName || 'General Consultation'}. ${appointmentData.notes || ''}`.trim();
+  const fullApptPayload = {
+    facility_id: cleanFacilityId,
+    patient_id: patientId,
+    provider_id: normalizedProviderId,
+    ...(resolvedProcedureId != null ? { procedure_id: resolvedProcedureId } : {}),
+    operatory: 'Room 101',
+    appointment_date: appointmentDateISO,
+    appointment_time: time24Str,
+    duration: 60,
+    status: 'PENDING',
+    notes: notesText
+  };
+
+  let { data: createdAppt, error: apptErr } = await admin
+    .from('appointments')
+    .insert([fullApptPayload])
+    .select()
+    .single();
+
+  if (apptErr) {
+    // Fallback without appointment_time / operatory in case table doesn't have those columns
+    const fallbackPayload = {
+      facility_id: cleanFacilityId,
+      patient_id: patientId,
+      provider_id: normalizedProviderId,
+      ...(resolvedProcedureId != null ? { procedure_id: resolvedProcedureId } : {}),
+      appointment_date: appointmentDateISO,
+      duration: 60,
+      status: 'PENDING',
+      notes: notesText
+    };
+    const retry1 = await admin
+      .from('appointments')
+      .insert([fallbackPayload])
+      .select()
+      .single();
+    createdAppt = retry1.data;
+    apptErr = retry1.error;
+
+    if (apptErr && resolvedProcedureId != null) {
+      // Fallback without procedure_id if FK constraint failed
+      const { procedure_id, ...noProcPayload } = fallbackPayload;
+      const retry2 = await admin
+        .from('appointments')
+        .insert([noProcPayload])
+        .select()
+        .single();
+      createdAppt = retry2.data;
+      apptErr = retry2.error;
+    }
+  }
+
+  if (apptErr) {
+    if (apptErr.code === '23505') {
+      throw Object.assign(
+        new RequestError(409, 'This time slot was just booked by another patient. Please choose a different time.'),
+        { code: 'SLOT_TAKEN' }
+      );
+    }
+    throw new RequestError(500, 'Failed to book appointment: ' + apptErr.message);
+  }
+
+  return { success: true, data: createdAppt };
+}
+
 module.exports = {
   DEFAULT_CANCELLATION_NOTICE_HOURS,
   formatAppointmentDateTime,
+  resolveProcedureName,
   evaluateCancellationPolicy,
   getPatientSchedule,
   cancelPatientAppointment,
-  validateSlotAvailability
+  validateSlotAvailability,
+  createPatientAppointment
 };

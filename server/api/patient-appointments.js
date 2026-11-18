@@ -71,9 +71,14 @@ module.exports = async function handler(req, res) {
       return res.status(200).json(result);
     }
 
-    // 3. POST: Multi-action handler (cancellation, availability check, schedule fetch)
+    // 3. POST: Multi-action handler (booking, cancellation, availability check, schedule fetch)
     if (req.method === 'POST') {
       const action = req.body?.action || 'get_schedule';
+
+      if (action === 'book' || action === 'create') {
+        const result = await appointments.createPatientAppointment(admin, user.id, req.body);
+        return res.status(200).json(result);
+      }
 
       if (action === 'cancel') {
         const appointmentId = req.body?.appointmentId || req.body?.appointment_id;

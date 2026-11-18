@@ -37,7 +37,7 @@ const CANCELLATION_REASONS = [
   'Other reason',
 ];
 
-export function MyAppointmentsModal({ visible, onClose, onScheduleNew }) {
+export function MyAppointmentsModal({ visible, onClose, onScheduleNew, onChanged }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,6 +131,9 @@ export function MyAppointmentsModal({ visible, onClose, onScheduleNew }) {
         Alert.alert('Appointment Cancelled', 'Your appointment has been cancelled successfully.');
         setCancellingAppointment(null);
         await loadAppointments();
+        if (onChanged) {
+          try { onChanged(); } catch {}
+        }
       } else {
         Alert.alert('Unable to Cancel', result.error || 'Failed to cancel appointment. Please check facility policy.');
       }
@@ -263,7 +266,7 @@ export function MyAppointmentsModal({ visible, onClose, onScheduleNew }) {
                   )}
                 </View>
               ) : (
-                filteredAppointments.map(apt => {
+                filteredAppointments.map((apt, index) => {
                   const badge = getStatusBadge(apt.status);
                   const BadgeIcon = badge.icon;
                   const isUpcoming = (apt.status || '').toUpperCase() === 'PENDING' ||
@@ -273,7 +276,7 @@ export function MyAppointmentsModal({ visible, onClose, onScheduleNew }) {
                     AppointmentAPI.evaluateCancellationPolicy(apt.appointmentDate, apt.status);
 
                   return (
-                    <View key={apt.id || apt.appointmentId} style={styles.appointmentCard}>
+                    <View key={`apt-${apt.id || apt.appointmentId || index}-${index}`} style={styles.appointmentCard}>
                       {/* Top row: Status & Reference */}
                       <View style={styles.cardTopRow}>
                         <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>

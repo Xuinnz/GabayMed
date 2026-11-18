@@ -17,68 +17,242 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.12,
 };
 
-function computeBoundingRegion(points) {
-  if (!points || points.length === 0) return DEFAULT_REGION;
-  if (points.length === 1) {
+// Global shared map state store so maps across all tabs stay 100% synchronized
+const sharedMapStore = {
+  region: { ...DEFAULT_REGION },
+  selectedPin: null,
+  activeRoute: null,
+  searchQuery: '',
+  locations: [],
+  userCoords: null,
+  locationGranted: null,
+  initialized: false,
+  listeners: new Set(),
+
+  getState() {
     return {
-      latitude: points[0].latitude,
-      longitude: points[0].longitude,
-      latitudeDelta: 0.04,
-      longitudeDelta: 0.04,
+      region: this.region,
+      selectedPin: this.selectedPin,
+      activeRoute: this.activeRoute,
+      searchQuery: this.searchQuery,
+      locations: this.locations,
+      userCoords: this.userCoords,
+      locationGranted: this.locationGranted,
+      initialized: this.initialized,
+    };
+  },
+
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  },
+
+  notify() {
+    const s = this.getState();
+    this.listeners.forEach(fn => {
+      try {
+        fn(s);
+      } catch {}
+    });
+  },
+
+  setRegion(r) {
+    if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
+    this.region = {
+      latitude: r.latitude,
+      longitude: r.longitude,
+      latitudeDelta: Math.min(0.20, Math.max(0.01, r.latitudeDelta || 0.12)),
+      longitudeDelta: Math.min(0.20, Math.max(0.01, r.longitudeDelta || 0.12)),
+    };
+  },
+
+  update(patch) {
+    let changed = false;
+    for (const [key, val] of Object.entries(patch)) {
+      if (key === 'region') {
+        this.setRegion(val);
+        changed = true;
+      } else if (this[key] !== val) {
+        this[key] = val;
+        changed = true;
+      }
+    }
+    if (changed) this.notify();
+  },
+};
+
+function computeBoundingRegion(points) {
+  if (!points || !Array.isArray(points) || points.length === 0) return { ...DEFAULT_REGION };
+
+  const validPoints = points
+    .filter(p => {
+      if (!p) return false;
+      const lat = Number(p.latitude ?? p.lat);
+      const lng = Number(p.longitude ?? p.lng);
+      return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        lat >= 4.5 &&
+        lat <= 21.5 &&
+        lng >= 116.0 &&
+        lng <= 127.0
+      );
+    })
+    .map(p => ({
+      latitude: Number(p.latitude ?? p.lat),
+      longitude: Number(p.longitude ?? p.lng),
+    }));
+
+  if (validPoints.length === 0) return { ...DEFAULT_REGION };
+  if (validPoints.length === 1) {
+    return {
+      latitude: validPoints[0].latitude,
+      longitude: validPoints[0].longitude,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
     };
   }
-  let minLat = points[0].latitude;
-  let maxLat = points[0].latitude;
-  let minLng = points[0].longitude;
-  let maxLng = points[0].longitude;
-  points.forEach(p => {
+
+  // Filter to primary NCR/Metro Manila cluster if at least 2 points are in NCR
+  const ncrPoints = validPoints.filter(
+    p => p.latitude >= 14.3 && p.latitude <= 14.9 && p.longitude >= 120.8 && p.longitude <= 121.2
+  );
+  const targetPoints = ncrPoints.length >= 2 ? ncrPoints : validPoints;
+
+  let minLat = targetPoints[0].latitude;
+  let maxLat = targetPoints[0].latitude;
+  let minLng = targetPoints[0].longitude;
+  let maxLng = targetPoints[0].longitude;
+
+  targetPoints.forEach(p => {
     if (p.latitude < minLat) minLat = p.latitude;
     if (p.latitude > maxLat) maxLat = p.latitude;
     if (p.longitude < minLng) minLng = p.longitude;
     if (p.longitude > maxLng) maxLng = p.longitude;
   });
+
+  // Clamp strictly to prevent map zoom out beyond Metro Manila / provincial area
+  const latDelta = Math.min(0.18, Math.max(0.04, (maxLat - minLat) * 1.4));
+  const lngDelta = Math.min(0.18, Math.max(0.04, (maxLng - minLng) * 1.4));
+
   return {
     latitude: (minLat + maxLat) / 2,
     longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max(0.03, (maxLat - minLat) * 1.45),
-    longitudeDelta: Math.max(0.03, (maxLng - minLng) * 1.45),
+    latitudeDelta: latDelta,
+    longitudeDelta: lngDelta,
   };
 }
 
-export function MapViewSection({ onSelectFacility }) {
+export function MapViewSection({ facilities: propFacilities, onSelectFacility, isActive = true }) {
   const inlineMapRef = useRef(null);
   const fullMapRef = useRef(null);
   const inlineMarkerRefs = useRef({});
   const fullMarkerRefs = useRef({});
 
+  const [mapKey, setMapKey] = useState(0);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const [locations, setLocations] = useState([]);
-  const [userCoords, setUserCoords] = useState(null);
-  const [locationGranted, setLocationGranted] = useState(null);
-  const [region, setRegion] = useState(DEFAULT_REGION);
+  const [locations, setLocations] = useState(() => {
+    if (Array.isArray(propFacilities) && propFacilities.length > 0) return propFacilities;
+    return sharedMapStore.locations;
+  });
+  const [userCoords, setUserCoords] = useState(() => sharedMapStore.userCoords);
+  const [locationGranted, setLocationGranted] = useState(() => sharedMapStore.locationGranted);
+  const [region, setRegion] = useState(() => sharedMapStore.region);
+
+  // Derive active locations prioritizing propFacilities, then state, then sharedMapStore
+  const activeLocations = (Array.isArray(propFacilities) && propFacilities.length > 0)
+    ? propFacilities
+    : (locations && locations.length > 0)
+      ? locations
+      : (sharedMapStore.locations && sharedMapStore.locations.length > 0)
+        ? sharedMapStore.locations
+        : [];
 
   // Initially NO facility is selected and NO route is drawn
-  const [selectedPin, setSelectedPin] = useState(null);
-  const [activeRoute, setActiveRoute] = useState(null);
+  const [selectedPin, setSelectedPin] = useState(() => sharedMapStore.selectedPin);
+  const [activeRoute, setActiveRoute] = useState(() => sharedMapStore.activeRoute);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
 
   // Search state with live suggestions dropdown
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => sharedMapStore.searchQuery);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Popup asking permission before turning on location when Location Access is OFF
   const [locationPromptAction, setLocationPromptAction] = useState(null); // null | { type: 'recenter' | 'directions', dest?: any }
   const [locatingBusy, setLocatingBusy] = useState(false);
 
+  // Sync with propFacilities when passed
   useEffect(() => {
-    initializeMap();
+    if (Array.isArray(propFacilities) && propFacilities.length > 0) {
+      setLocations(propFacilities);
+      if (sharedMapStore.locations.length === 0) {
+        sharedMapStore.update({ locations: propFacilities });
+      }
+    }
+  }, [propFacilities]);
+
+  // Subscribe to changes from the shared map store across tabs
+  useEffect(() => {
+    const unsub = sharedMapStore.subscribe(state => {
+      setRegion(state.region);
+      setSelectedPin(state.selectedPin);
+      setActiveRoute(state.activeRoute);
+      setSearchQuery(state.searchQuery);
+      if (Array.isArray(state.locations) && state.locations.length > 0) {
+        setLocations(state.locations);
+      }
+      setUserCoords(state.userCoords);
+      setLocationGranted(state.locationGranted);
+    });
+    return unsub;
+  }, []);
+
+  // When tab becomes active, bump mapKey to mount fresh native map & markers
+  useEffect(() => {
+    if (isActive) {
+      setMapKey(k => k + 1);
+
+      const targetLocations = (Array.isArray(propFacilities) && propFacilities.length > 0)
+        ? propFacilities
+        : sharedMapStore.locations;
+
+      if (targetLocations && targetLocations.length > 0) {
+        setLocations(targetLocations);
+      } else {
+        initializeMap();
+      }
+
+      setRegion(sharedMapStore.region);
+      setSelectedPin(sharedMapStore.selectedPin);
+      setActiveRoute(sharedMapStore.activeRoute);
+      setSearchQuery(sharedMapStore.searchQuery);
+
+      const timer = setTimeout(() => {
+        inlineMapRef.current?.animateToRegion?.(sharedMapStore.region, 350);
+        if (sharedMapStore.selectedPin?.id) {
+          inlineMarkerRefs.current[sharedMapStore.selectedPin.id]?.showCallout?.();
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!sharedMapStore.initialized || sharedMapStore.locations.length === 0) {
+      initializeMap();
+    }
     const unsub = ProfileAPI.subscribePermissions(perms => {
       if (!perms.locationAllowed) {
         setLocationGranted(false);
         setUserCoords(null);
         setActiveRoute(null);
         setShowSteps(false);
+        sharedMapStore.update({
+          locationGranted: false,
+          userCoords: null,
+          activeRoute: null,
+        });
       } else {
         initializeMap();
       }
@@ -88,17 +262,38 @@ export function MapViewSection({ onSelectFacility }) {
 
   const initializeMap = async () => {
     const locResult = await MapAPI.requestUserLocation();
-    setLocationGranted(locResult.granted);
     const currentCoords = locResult.granted ? locResult.coords : null;
-    setUserCoords(currentCoords);
-
     const facilities = await MapAPI.getFacilitiesLocations(currentCoords);
-    setLocations(facilities);
 
-    const points = currentCoords
-      ? [currentCoords, ...facilities]
-      : facilities;
-    setRegion(computeBoundingRegion(points));
+    // Only include userCoords in bounding calculation if inside the Philippines
+    const isPhUser =
+      currentCoords &&
+      currentCoords.latitude >= 4.5 &&
+      currentCoords.latitude <= 21.5 &&
+      currentCoords.longitude >= 116.0 &&
+      currentCoords.longitude <= 127.0;
+
+    const points = isPhUser ? [currentCoords, ...facilities] : facilities;
+    const initialRegion = computeBoundingRegion(points);
+
+    sharedMapStore.update({
+      locationGranted: locResult.granted,
+      userCoords: currentCoords,
+      locations: facilities,
+      region: initialRegion,
+      initialized: true,
+    });
+    setRegion(initialRegion);
+    setLocations(facilities);
+    setUserCoords(currentCoords);
+    setLocationGranted(locResult.granted);
+  };
+
+  const handleRegionChangeComplete = r => {
+    if (r && Number.isFinite(r.latitude) && Number.isFinite(r.longitude) && (r.latitudeDelta || 0) > 0.005) {
+      sharedMapStore.setRegion(r);
+      setRegion(r);
+    }
   };
 
   const activateAndFetchUserLocation = async () => {
@@ -136,6 +331,7 @@ export function MapViewSection({ onSelectFacility }) {
       longitudeDelta: 0.03,
     };
     setRegion(targetRegion);
+    sharedMapStore.update({ region: targetRegion });
     inlineMapRef.current?.animateToRegion?.(targetRegion, 450);
     fullMapRef.current?.animateToRegion?.(targetRegion, 450);
     setTimeout(() => {
@@ -157,6 +353,11 @@ export function MapViewSection({ onSelectFacility }) {
         { latitude: dest.latitude, longitude: dest.longitude },
       ]);
       setRegion(framed);
+      sharedMapStore.update({
+        selectedPin: dest,
+        activeRoute: routeData,
+        region: framed,
+      });
       inlineMapRef.current?.animateToRegion?.(framed, 500);
       fullMapRef.current?.animateToRegion?.(framed, 500);
     } finally {
@@ -194,6 +395,11 @@ export function MapViewSection({ onSelectFacility }) {
       longitudeDelta: 0.015,
     };
     setRegion(targetRegion);
+    sharedMapStore.update({
+      selectedPin: loc,
+      activeRoute: null,
+      region: targetRegion,
+    });
     inlineMapRef.current?.animateToRegion?.(targetRegion, 450);
     fullMapRef.current?.animateToRegion?.(targetRegion, 450);
 
@@ -216,6 +422,10 @@ export function MapViewSection({ onSelectFacility }) {
     setSelectedPin(null);
     setActiveRoute(null);
     setShowSteps(false);
+    sharedMapStore.update({
+      selectedPin: null,
+      activeRoute: null,
+    });
   };
 
   const startInAppDirections = async targetFacility => {
@@ -246,15 +456,15 @@ export function MapViewSection({ onSelectFacility }) {
   };
 
   const suggestions = searchQuery.trim()
-    ? locations.filter(loc => {
+    ? activeLocations.filter(loc => {
         const q = searchQuery.trim().toLowerCase();
         return (
-          loc.name.toLowerCase().includes(q) ||
-          loc.address.toLowerCase().includes(q) ||
-          (loc.services || []).some(s => s.toLowerCase().includes(q))
+          (loc.name || loc.title || '').toLowerCase().includes(q) ||
+          (loc.address || loc.location || '').toLowerCase().includes(q) ||
+          (loc.services || []).some(s => (s || '').toLowerCase().includes(q))
         );
       })
-    : locations.slice(0, 8);
+    : activeLocations.slice(0, 8);
 
   const renderCalloutBubble = (title, subtitle, isUser = false) => (
     <Callout tooltip>
@@ -306,22 +516,34 @@ export function MapViewSection({ onSelectFacility }) {
       )}
 
       {/* Registered Hospitals, Clinics & Branches (BLUE) with matching themed callout */}
-      {locations.map(loc => {
-        const isSelected = selectedPin?.id === loc.id;
-        return (
-          <Marker
-            key={loc.id}
-            ref={el => {
-              if (el) markerRefsMap.current[loc.id] = el;
-            }}
-            coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-            pinColor={isSelected ? '#1d4ed8' : '#0ea5e9'}
-            onPress={() => selectFacilityPin(loc)}
-          >
-            {renderCalloutBubble(loc.name, loc.address, false)}
-          </Marker>
-        );
-      })}
+      {activeLocations
+        .filter(
+          loc =>
+            loc &&
+            Number.isFinite(Number(loc.latitude)) &&
+            Number.isFinite(Number(loc.longitude)) &&
+            Math.abs(Number(loc.latitude)) > 1
+        )
+        .map((loc, idx) => {
+          const isSelected = selectedPin?.id === loc.id;
+          const key = `marker-${loc.id || loc.facilityId || idx}-${mapKey}`;
+          return (
+            <Marker
+              key={key}
+              ref={el => {
+                if (el && loc.id) markerRefsMap.current[loc.id] = el;
+              }}
+              coordinate={{
+                latitude: Number(loc.latitude),
+                longitude: Number(loc.longitude),
+              }}
+              pinColor={isSelected ? '#1d4ed8' : '#0ea5e9'}
+              onPress={() => selectFacilityPin(loc)}
+            >
+              {renderCalloutBubble(loc.name || loc.title, loc.address || loc.location, false)}
+            </Marker>
+          );
+        })}
     </>
   );
 
@@ -498,18 +720,26 @@ export function MapViewSection({ onSelectFacility }) {
   return (
     <>
       <View style={styles.mapContainer}>
-        <MapView
-          ref={inlineMapRef}
-          style={styles.map}
-          region={region}
-          showsUserLocation={false}
-          showsMyLocationButton={false}
-          showsCompass={false}
-          toolbarEnabled={false}
-          onPress={() => setShowSuggestions(false)}
-        >
-          {renderMarkersAndRoute(inlineMarkerRefs)}
-        </MapView>
+        {!isActive ? (
+          <View style={[styles.map, styles.mapLoadingFallback]}>
+            <ActivityIndicator size="small" color="#0ea5e9" />
+          </View>
+        ) : (
+          <MapView
+            key={`inline-map-${mapKey}`}
+            ref={inlineMapRef}
+            style={styles.map}
+            initialRegion={sharedMapStore.region}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            toolbarEnabled={false}
+            onRegionChangeComplete={handleRegionChangeComplete}
+            onPress={() => setShowSuggestions(false)}
+          >
+            {renderMarkersAndRoute(inlineMarkerRefs)}
+          </MapView>
+        )}
 
         {/* Top search bar with live suggestions + expand button */}
         <View style={styles.inlineTopBar}>
@@ -603,13 +833,15 @@ export function MapViewSection({ onSelectFacility }) {
       >
         <View style={styles.fullscreenMapContainer}>
           <MapView
+            key={`full-map-${mapKey}`}
             ref={fullMapRef}
             style={styles.fullscreenMap}
-            region={region}
+            initialRegion={sharedMapStore.region}
             showsUserLocation={false}
             showsMyLocationButton={false}
             showsCompass={false}
             toolbarEnabled={false}
+            onRegionChangeComplete={handleRegionChangeComplete}
             onPress={() => setShowSuggestions(false)}
           >
             {renderMarkersAndRoute(fullMarkerRefs)}
@@ -721,6 +953,13 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  mapLoadingFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   calloutWrapper: {
     alignItems: 'center',

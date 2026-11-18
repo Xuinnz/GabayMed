@@ -5,6 +5,22 @@ import { Platform } from 'react-native';
 
 const DEFAULT_CANCELLATION_NOTICE_HOURS = 24;
 
+export const STANDARD_MEDICAL_SERVICES = [
+  'General Check-up',
+  'General Physician',
+  'Cardiologist',
+  'Neurologist',
+  'Pediatrician',
+  'Dermatologist',
+  'Orthopedic',
+  'Psychiatric',
+  'Ophthalmologist',
+  'ENT Specialist',
+  'Pulmonologist',
+  'Dentist',
+  'Hematologist',
+];
+
 function resolveApiUrl() {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
@@ -23,6 +39,17 @@ function resolveApiUrl() {
 }
 
 const API_URL = resolveApiUrl();
+
+function extractProcedureName(apt) {
+  if (apt?.procedures?.name) return apt.procedures.name;
+  if (apt?.procedures?.description) return apt.procedures.description;
+  if (typeof apt?.notes === 'string') {
+    const match = /^Service:\s*([^.]+)\./i.exec(apt.notes.trim());
+    if (match && match[1]) return match[1].trim();
+  }
+  if (apt?.procedure_id) return `Procedure #${apt.procedure_id}`;
+  return 'Consultation';
+}
 
 const AppointmentAPI = {
   DEFAULT_CANCELLATION_NOTICE_HOURS,
@@ -92,7 +119,6 @@ const AppointmentAPI = {
             }
           }
         } catch (apiErr) {
-          // Fall back to direct Supabase query
           console.warn('Backend API unreachable, falling back to Supabase:', apiErr.message);
         }
       }
@@ -104,19 +130,11 @@ const AppointmentAPI = {
       const { data, error } = await supabase
         .from('appointments')
         .select(`
-          appointment_id,
-          appointment_date,
-          duration,
-          status,
-          notes,
-          patient_id,
-          facility_id,
-          procedures ( procedure_id, name ),
+          *,
+          procedures ( * ),
           providers (
-            provider_id,
-            name,
-            specialization,
-            facilities ( facility_id, name, address, contact_num )
+            *,
+            facilities ( * )
           )
         `)
         .in('patient_id', patientIds)
@@ -126,7 +144,13 @@ const AppointmentAPI = {
 
       return (data || []).map(apt => {
         const facility = apt.providers?.facilities || {};
-        const d = new Date(apt.appointment_date);
+        let d = new Date(apt.appointment_date);
+        if (apt.appointment_time && typeof apt.appointment_date === 'string' && !apt.appointment_date.includes('T')) {
+          const [y, m, day] = apt.appointment_date.split('-').map(Number);
+          const [hh, mm] = apt.appointment_time.split(':').map(Number);
+          d = new Date(y, m - 1, day, hh || 0, mm || 0, 0);
+        }
+
         const dateStr = d.toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'short',
@@ -139,12 +163,12 @@ const AppointmentAPI = {
           hour12: true,
         });
 
-        const policy = this.evaluateCancellationPolicy(apt.appointment_date, apt.status);
+        const policy = this.evaluateCancellationPolicy(d.toISOString(), apt.status);
 
         return {
           id: apt.appointment_id,
           appointmentId: apt.appointment_id,
-          appointmentDate: apt.appointment_date,
+          appointmentDate: d.toISOString(),
           formattedDate: dateStr,
           formattedTime: timeStr,
           duration: apt.duration || 60,
@@ -152,11 +176,11 @@ const AppointmentAPI = {
           notes: apt.notes || '',
           facilityId: apt.facility_id || facility.facility_id,
           facilityName: facility.name || 'Medical Facility',
-          facilityAddress: facility.address || '',
+          facilityAddress: facility.address || facility.location || '',
           facilityPhone: facility.contact_num || '',
           providerName: apt.providers?.name || 'Assigned Provider',
-          providerSpecialty: apt.providers?.specialization || 'General Physician',
-          procedureName: apt.procedures?.name || 'Consultation',
+          providerSpecialty: apt.providers?.specialization || apt.providers?.specialty || 'General Physician',
+          procedureName: extractProcedureName(apt),
           cancellationPolicy: policy,
         };
       });
@@ -168,7 +192,7 @@ const AppointmentAPI = {
 
   /**
    * Cancel an appointment subject to facility time-limit policy.
-   * Tries backend PATCH/DELETE endpoint first, falling back to Supabase update.
+   * Tries backend PATCH endpoint first, falling back to Supabase update.
    */
   async cancelAppointment(appointmentId, reason = '') {
     try {
@@ -190,14 +214,16 @@ const AppointmentAPI = {
           });
           clearTimeout(timer);
 
-          const result = await response.json();
-          if (!response.ok) {
-            return {
-              success: false,
-              error: result.error || 'Failed to cancel appointment due to policy restrictions.',
-            };
+          if (response.status !== 404) {
+            const result = await response.json();
+            if (!response.ok) {
+              return {
+                success: false,
+                error: result.error || 'Failed to cancel appointment due to policy restrictions.',
+              };
+            }
+            return { success: true, message: result.message || 'Appointment cancelled successfully.' };
           }
-          return { success: true, message: result.message || 'Appointment cancelled successfully.' };
         } catch (apiErr) {
           console.warn('Backend API cancel endpoint unreachable, checking policy directly:', apiErr.message);
         }
@@ -209,17 +235,25 @@ const AppointmentAPI = {
         .select(`
           appointment_id,
           appointment_date,
+          appointment_time,
           status,
           notes,
-          providers ( facilities ( name, contact_num ) )
+          providers ( facilities ( * ) )
         `)
         .eq('appointment_id', appointmentId)
         .single();
 
       if (fetchErr) throw fetchErr;
 
+      let apptDateIso = apt.appointment_date;
+      if (apt.appointment_time && typeof apt.appointment_date === 'string' && !apt.appointment_date.includes('T')) {
+        const [y, m, day] = apt.appointment_date.split('-').map(Number);
+        const [hh, mm] = apt.appointment_time.split(':').map(Number);
+        apptDateIso = new Date(y, m - 1, day, hh || 0, mm || 0, 0).toISOString();
+      }
+
       // Validate policy
-      const policy = this.evaluateCancellationPolicy(apt.appointment_date, apt.status);
+      const policy = this.evaluateCancellationPolicy(apptDateIso, apt.status);
       if (!policy.cancellable) {
         const facName = apt.providers?.facilities?.name || 'the clinic';
         const facPhone = apt.providers?.facilities?.contact_num;
@@ -253,17 +287,51 @@ const AppointmentAPI = {
   },
 
   /**
-   * Get providers linked to a specific facility
+   * Get all registered healthcare facilities
+   */
+  async getAllFacilities() {
+    try {
+      const { data, error } = await supabase
+        .from('facilities')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      return (data || []).map(f => ({
+        key: `fac-${f.facility_id}`,
+        id: f.facility_id,
+        facilityId: f.facility_id,
+        name: f.name || 'Healthcare Facility',
+        address: f.location || f.address || 'Metro Manila, Philippines',
+        phone: f.contact_num || '',
+      }));
+    } catch (error) {
+      console.error('Get All Facilities Error:', error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Get providers linked to a specific facility (with fallback to all providers if none linked yet)
    */
   async getFacilityProviders(facilityId) {
     try {
+      const cleanId = String(facilityId || '').replace(/^(facility-|branch-)/, '').trim();
       const { data, error } = await supabase
         .from('providers')
         .select('*')
-        .eq('facility_id', facilityId);
+        .eq('facility_id', cleanId);
 
-      if (error) throw error;
-      return data || [];
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+
+      // Fallback: if a facility has no linked providers yet, return all available providers
+      const { data: allProviders, error: allErr } = await supabase
+        .from('providers')
+        .select('*');
+      if (allErr) throw allErr;
+      return allProviders || [];
     } catch (error) {
       console.error('Get Providers Error:', error.message);
       return [];
@@ -271,21 +339,43 @@ const AppointmentAPI = {
   },
 
   /**
-   * Get services offered by a specific facility
+   * Get services offered by a specific facility, always enabling standard specialties
+   * (Neurologist, Cardiologist, General Check-up, etc.)
    */
   async getFacilityServices(facilityId) {
     try {
-      const { data, error } = await supabase
+      const cleanId = String(facilityId || '').replace(/^(facility-|branch-)/, '').trim();
+      const { data } = await supabase
         .from('facilities')
         .select('services_offered')
-        .eq('facility_id', facilityId)
-        .single();
+        .eq('facility_id', cleanId)
+        .maybeSingle();
 
-      if (error) throw error;
-      return data?.services_offered || [];
+      let raw = data?.services_offered || [];
+      if (typeof raw === 'string') {
+        try {
+          if (raw.startsWith('{') && raw.endsWith('}')) {
+            raw = raw.slice(1, -1).split(',').map(s => s.replace(/"/g, '').trim());
+          } else if (raw.startsWith('[') && raw.endsWith(']')) {
+            raw = JSON.parse(raw);
+          } else {
+            raw = raw.split(',').map(s => s.trim());
+          }
+        } catch {
+          raw = [];
+        }
+      }
+
+      const customServices = (Array.isArray(raw) ? raw : [])
+        .map(s => String(s || '').trim())
+        .filter(s => s && !/^(everything|all|all services|none|n\/a)$/i.test(s));
+
+      // Combine custom facility services with all standard medical specialties
+      const combined = new Set([...customServices, ...STANDARD_MEDICAL_SERVICES]);
+      return Array.from(combined);
     } catch (error) {
       console.error('Get Facility Services Error:', error.message);
-      return [];
+      return [...STANDARD_MEDICAL_SERVICES];
     }
   },
 
@@ -295,15 +385,13 @@ const AppointmentAPI = {
    */
   async getProviderSchedule(providerId, dateString) {
     try {
-      const startDate = new Date(dateString);
-      startDate.setHours(0, 0, 0, 0);
-
-      const endDate = new Date(dateString);
-      endDate.setHours(23, 59, 59, 999);
+      const [y, m, d] = String(dateString).split('-').map(Number);
+      const startDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const endDate = new Date(y, m - 1, d, 23, 59, 59, 999);
 
       const { data, error } = await supabase
         .from('appointments')
-        .select('appointment_date')
+        .select('*')
         .eq('provider_id', providerId)
         .gte('appointment_date', startDate.toISOString())
         .lte('appointment_date', endDate.toISOString())
@@ -311,7 +399,13 @@ const AppointmentAPI = {
 
       if (error) throw error;
 
-      return data.map(a => a.appointment_date);
+      return (data || []).map(a => {
+        if (a.appointment_time && typeof a.appointment_date === 'string' && !a.appointment_date.includes('T')) {
+          const [hh, mm] = a.appointment_time.split(':').map(Number);
+          return new Date(y, m - 1, d, hh || 0, mm || 0, 0).toISOString();
+        }
+        return a.appointment_date;
+      });
     } catch (error) {
       console.error('Get Schedule Error:', error.message);
       return [];
@@ -349,10 +443,11 @@ const AppointmentAPI = {
    */
   async getFacilityName(facilityId) {
     try {
+      const cleanId = String(facilityId || '').replace(/^(facility-|branch-)/, '').trim();
       const { data, error } = await supabase
         .from('facilities')
         .select('name')
-        .eq('facility_id', facilityId)
+        .eq('facility_id', cleanId)
         .single();
 
       if (error) throw error;
@@ -366,67 +461,180 @@ const AppointmentAPI = {
   /**
    * Create a new appointment for the current user.
    * Includes a double-booking guard that re-checks slot availability
-   * immediately before inserting.
+   * immediately before inserting, and populates `created_at` on `patients`.
    */
   async createAppointment(appointmentData) {
     try {
+      // 1. Try backend endpoint first if available
+      const token = await Session.getAccessToken().catch(() => null);
+      if (token) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 6000);
+          const response = await fetch(`${API_URL}/api/patient-appointments`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              action: 'book',
+              ...appointmentData,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+
+          if (response.ok) {
+            const resData = await response.json();
+            if (resData?.success) {
+              return { success: true, data: resData.data };
+            }
+          } else if (response.status === 409) {
+            const errData = await response.json().catch(() => ({}));
+            return {
+              success: false,
+              error: 'SLOT_TAKEN',
+              message:
+                errData.error ||
+                'This time slot was just booked by another patient. Please choose a different time.',
+            };
+          }
+        } catch {
+          // Backend unreachable or not updated; proceed with direct Supabase client below
+        }
+      }
+
+      // 2. Direct Supabase Client Implementation
       const userId = Session.getUserId();
       if (!userId) throw new Error('User not authenticated');
 
-      const facilityId = appointmentData.facilityId;
+      const cleanFacilityId = String(appointmentData.facilityId || '')
+        .replace(/^(facility-|branch-)/, '')
+        .trim();
+      if (!cleanFacilityId) throw new Error('Facility ID is required');
 
+      // 3. Resolve or Create Patient ID for this user at this facility
       let patientId = null;
-      const { data: existingPatient } = await supabase
+      const { data: existingPatients } = await supabase
         .from('patients')
         .select('patient_id')
         .eq('profile_id', userId)
-        .eq('facility_id', facilityId)
-        .maybeSingle();
+        .eq('facility_id', cleanFacilityId)
+        .limit(1);
 
-      if (existingPatient) {
-        patientId = existingPatient.patient_id;
+      if (Array.isArray(existingPatients) && existingPatients.length > 0) {
+        patientId = existingPatients[0].patient_id;
       } else {
-        const { data: profile, error: profileError } = await supabase
+        const { data: dbProfile } = await supabase
           .from('profiles')
           .select('full_name, first_name, middle_name, last_name, phone_number, address, date_of_birth, gender')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
 
-        if (profileError) {
-          throw new Error('Could not retrieve user profile to create patient record.');
+        // Resolve a valid insurance_id (required NOT NULL in patients table)
+        let resolvedInsuranceId = appointmentData.insuranceId || null;
+        if (resolvedInsuranceId == null) {
+          try {
+            const { data: userPatIns } = await supabase
+              .from('patients')
+              .select('insurance_id')
+              .eq('profile_id', userId)
+              .not('insurance_id', 'is', null)
+              .limit(1);
+            if (userPatIns?.[0]?.insurance_id != null) {
+              resolvedInsuranceId = userPatIns[0].insurance_id;
+            }
+          } catch {}
+        }
+        if (resolvedInsuranceId == null) {
+          try {
+            const { data: plans } = await supabase
+              .from('insurance_plans')
+              .select('insurance_id')
+              .limit(1);
+            if (plans?.[0]?.insurance_id != null) {
+              resolvedInsuranceId = plans[0].insurance_id;
+            }
+          } catch {}
+        }
+        if (resolvedInsuranceId == null) {
+          try {
+            const { data: anyPatIns } = await supabase
+              .from('patients')
+              .select('insurance_id')
+              .not('insurance_id', 'is', null)
+              .limit(1);
+            if (anyPatIns?.[0]?.insurance_id != null) {
+              resolvedInsuranceId = anyPatIns[0].insurance_id;
+            }
+          } catch {}
         }
 
-        const { data: newPatient, error: createError } = await supabase
+        const sessionProfile = Session.current()?.profile || {};
+        const firstName = dbProfile?.first_name || sessionProfile.firstName || 'Guest';
+        const middleName = dbProfile?.middle_name || sessionProfile.middleName || null;
+        const lastName = dbProfile?.last_name || sessionProfile.lastName || 'Patient';
+        const fullName =
+          dbProfile?.full_name ||
+          sessionProfile.fullName ||
+          [firstName, middleName, lastName].filter(Boolean).join(' ') ||
+          'Guest User';
+        const dob = dbProfile?.date_of_birth || sessionProfile.dateOfBirth || '2000-01-01';
+        const age = dob
+          ? Math.max(0, Math.abs(new Date(Date.now() - new Date(dob).getTime()).getUTCFullYear() - 1970))
+          : 25;
+
+        const patientPayload = {
+          profile_id: userId,
+          facility_id: cleanFacilityId,
+          full_name: fullName,
+          first_name: firstName,
+          middle_name: middleName,
+          last_name: lastName,
+          phone_number: dbProfile?.phone_number || sessionProfile.phoneNumber || sessionProfile.mobileNumber || '09000000000',
+          address: dbProfile?.address || sessionProfile.address || 'Metro Manila',
+          date_of_birth: dob,
+          gender: dbProfile?.gender || sessionProfile.gender || 'Prefer not to say',
+          age,
+          ...(resolvedInsuranceId != null ? { insurance_id: resolvedInsuranceId } : {}),
+          created_at: new Date().toISOString(),
+        };
+
+        let { data: newPatient, error: createError } = await supabase
           .from('patients')
-          .insert([{
-            profile_id: userId,
-            facility_id: facilityId,
-            full_name: profile.full_name || 'Guest User',
-            first_name: profile.first_name || null,
-            middle_name: profile.middle_name || null,
-            last_name: profile.last_name || null,
-            phone_number: profile.phone_number || null,
-            address: profile.address || null,
-            date_of_birth: profile.date_of_birth,
-            gender: profile.gender,
-          }])
+          .insert([patientPayload])
           .select('patient_id')
           .single();
+
+        if (createError && createError.message?.includes('full_name')) {
+          const { full_name, ...withoutFullName } = patientPayload;
+          const retry = await supabase
+            .from('patients')
+            .insert([withoutFullName])
+            .select('patient_id')
+            .single();
+          newPatient = retry.data;
+          createError = retry.error;
+        }
 
         if (createError) throw createError;
         patientId = newPatient.patient_id;
       }
 
+      // 4. Construct timestamp safely
       let appointmentDate;
+      let time24Str;
       try {
-        const [year, month, day] = appointmentData.date.split('-').map(Number);
-        const [timeStr, modifier] = appointmentData.time.split(' ');
+        const [year, month, day] = String(appointmentData.date).split('-').map(Number);
+        const [timeStr, modifier] = String(appointmentData.time).trim().split(' ');
         let [hours, minutes] = timeStr.split(':').map(Number);
 
         if (modifier === 'PM' && hours < 12) hours += 12;
         if (modifier === 'AM' && hours === 12) hours = 0;
 
-        const dateObj = new Date(year, month - 1, day, hours, minutes, 0);
+        time24Str = `${String(hours).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}:00`;
+        const dateObj = new Date(year, month - 1, day, hours, minutes || 0, 0);
         if (isNaN(dateObj.getTime())) {
           throw new Error('Invalid date constructed');
         }
@@ -436,12 +644,12 @@ const AppointmentAPI = {
         throw new Error('Invalid date or time format');
       }
 
-      // Double-booking check
-      const slotFree = await this.isSlotAvailable(
-        appointmentData.providerId,
-        appointmentDate
-      );
+      const normalizedProviderId = !isNaN(Number(appointmentData.providerId))
+        ? parseInt(appointmentData.providerId, 10)
+        : appointmentData.providerId;
 
+      // 5. Double-booking check
+      const slotFree = await this.isSlotAvailable(normalizedProviderId, appointmentDate);
       if (!slotFree) {
         return {
           success: false,
@@ -450,20 +658,75 @@ const AppointmentAPI = {
         };
       }
 
-      const { data, error } = await supabase
+      // 6. Resolve a valid procedure_id from `procedures` table if available
+      let resolvedProcedureId = appointmentData.procedureId || null;
+      if (!resolvedProcedureId) {
+        try {
+          const { data: procs } = await supabase.from('procedures').select('*').limit(50);
+          if (Array.isArray(procs) && procs.length > 0) {
+            const svcLower = String(appointmentData.serviceName || '').toLowerCase();
+            const matched = procs.find(p => {
+              const pName = String(p.name || p.description || '').toLowerCase();
+              return pName && (pName.includes(svcLower) || svcLower.includes(pName));
+            });
+            resolvedProcedureId = (matched || procs[0]).procedure_id;
+          }
+        } catch {}
+      }
+
+      // 7. Insert Appointment with graceful fallback for optional columns
+      const notesText = `Service: ${appointmentData.serviceName || 'General Consultation'}. ${appointmentData.notes || ''}`.trim();
+      const fullPayload = {
+        facility_id: cleanFacilityId,
+        patient_id: patientId,
+        provider_id: normalizedProviderId,
+        ...(resolvedProcedureId != null ? { procedure_id: resolvedProcedureId } : {}),
+        operatory: 'Room 101',
+        appointment_date: appointmentDate,
+        appointment_time: time24Str,
+        duration: 60,
+        status: 'PENDING',
+        notes: notesText,
+      };
+
+      let { data, error } = await supabase
         .from('appointments')
-        .insert([{
-          facility_id: facilityId,
+        .insert([fullPayload])
+        .select()
+        .single();
+
+      if (error) {
+        // Fallback if appointment_time or operatory columns don't exist
+        const fallbackPayload = {
+          facility_id: cleanFacilityId,
           patient_id: patientId,
-          provider_id: appointmentData.providerId,
-          procedure_id: appointmentData.procedureId || '7b54b7db-ff42-4e8d-a147-133cfb5eab16',
-          notes: `Service: ${appointmentData.serviceName}. ${appointmentData.notes || ''}`,
+          provider_id: normalizedProviderId,
+          ...(resolvedProcedureId != null ? { procedure_id: resolvedProcedureId } : {}),
           appointment_date: appointmentDate,
           duration: 60,
           status: 'PENDING',
-        }])
-        .select()
-        .single();
+          notes: notesText,
+        };
+        const retry1 = await supabase
+          .from('appointments')
+          .insert([fallbackPayload])
+          .select()
+          .single();
+        data = retry1.data;
+        error = retry1.error;
+
+        if (error && resolvedProcedureId != null) {
+          // Fallback without procedure_id if FK constraint failed
+          const { procedure_id, ...noProcPayload } = fallbackPayload;
+          const retry2 = await supabase
+            .from('appointments')
+            .insert([noProcPayload])
+            .select()
+            .single();
+          data = retry2.data;
+          error = retry2.error;
+        }
+      }
 
       if (error) {
         if (error.code === '23505') {

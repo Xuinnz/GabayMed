@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import {
   User, History, HelpCircle, LogOut, ChevronRight, ArrowLeft, Mail,
   Heart, Plus, Trash2, Camera, ShieldCheck, Droplets, AlertTriangle, Stethoscope, ImagePlus,
-  Building2, MapPin, Bell, FileText, Lock,
+  Building2, MapPin, Bell, FileText, Lock, Globe, Sun, Moon, Type, Eye, Calendar, CreditCard, MessageCircle, Gift,
 } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
 import { PatientAvatar, AVATAR_PRESETS, resolveAvatarPreset } from '../components/patient-avatar';
@@ -16,7 +16,13 @@ import {
 } from '../components/auth/auth-ui';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '../components/auth/legal';
 import AuthAPI from '../services/authApi';
-import ProfileAPI from '../services/profileApi';
+import ProfileAPI, {
+  APP_LANGUAGES,
+  THEME_MODES,
+  TEXT_SIZES,
+  getAppTranslations,
+  getDisplayConfig,
+} from '../services/profileApi';
 
 const SUFFIXES = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
@@ -1087,6 +1093,41 @@ export function SettingsPage({
     cachedPerms ? !!cachedPerms.notificationsAllowed : true
   );
 
+  // Granular notification category preferences
+  const [notifyAppointments, setNotifyAppointments] = useState(
+    cachedPerms && typeof cachedPerms.notifyAppointments === 'boolean'
+      ? cachedPerms.notifyAppointments
+      : true
+  );
+  const [notifyBilling, setNotifyBilling] = useState(
+    cachedPerms && typeof cachedPerms.notifyBilling === 'boolean'
+      ? cachedPerms.notifyBilling
+      : true
+  );
+  const [notifyInsurance, setNotifyInsurance] = useState(
+    cachedPerms && typeof cachedPerms.notifyInsurance === 'boolean'
+      ? cachedPerms.notifyInsurance
+      : true
+  );
+  const [notifyMessages, setNotifyMessages] = useState(
+    cachedPerms && typeof cachedPerms.notifyMessages === 'boolean'
+      ? cachedPerms.notifyMessages
+      : true
+  );
+  const [notifyPromos, setNotifyPromos] = useState(
+    cachedPerms && typeof cachedPerms.notifyPromos === 'boolean'
+      ? cachedPerms.notifyPromos
+      : true
+  );
+
+  // Application language & display preferences
+  const [language, setLanguage] = useState(cachedPerms?.language || 'en');
+  const [themeMode, setThemeMode] = useState(cachedPerms?.themeMode || 'light');
+  const [textSize, setTextSize] = useState(cachedPerms?.textSize || 'medium');
+  const [highContrast, setHighContrast] = useState(
+    cachedPerms ? !!cachedPerms.highContrast : false
+  );
+
   const [legalPopup, setLegalPopup] = useState(null); // 'terms' | 'privacy' | null
   const [infoPopup, setInfoPopup] = useState(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -1123,13 +1164,27 @@ export function SettingsPage({
       })
       .catch(() => {});
 
+    const syncPermsState = perms => {
+      if (!perms) return;
+      setInsuranceConsent(!!perms.insuranceConsent);
+      setDataSharingConsent(!!perms.dataSharingConsent);
+      setLocationAllowed(!!perms.locationAllowed);
+      setNotificationsAllowed(!!perms.notificationsAllowed);
+      if (typeof perms.notifyAppointments === 'boolean') setNotifyAppointments(perms.notifyAppointments);
+      if (typeof perms.notifyBilling === 'boolean') setNotifyBilling(perms.notifyBilling);
+      if (typeof perms.notifyInsurance === 'boolean') setNotifyInsurance(perms.notifyInsurance);
+      if (typeof perms.notifyMessages === 'boolean') setNotifyMessages(perms.notifyMessages);
+      if (typeof perms.notifyPromos === 'boolean') setNotifyPromos(perms.notifyPromos);
+      if (perms.language) setLanguage(perms.language);
+      if (perms.themeMode) setThemeMode(perms.themeMode);
+      if (perms.textSize) setTextSize(perms.textSize);
+      if (typeof perms.highContrast === 'boolean') setHighContrast(perms.highContrast);
+    };
+
     ProfileAPI.getPermissions()
       .then(perms => {
         if (!mounted || !perms) return;
-        setInsuranceConsent(!!perms.insuranceConsent);
-        setDataSharingConsent(!!perms.dataSharingConsent);
-        setLocationAllowed(!!perms.locationAllowed);
-        setNotificationsAllowed(!!perms.notificationsAllowed);
+        syncPermsState(perms);
       })
       .catch(() => {});
 
@@ -1141,10 +1196,7 @@ export function SettingsPage({
 
     const unsubPerms = ProfileAPI.subscribePermissions(perms => {
       if (mounted && perms) {
-        setInsuranceConsent(!!perms.insuranceConsent);
-        setDataSharingConsent(!!perms.dataSharingConsent);
-        setLocationAllowed(!!perms.locationAllowed);
-        setNotificationsAllowed(!!perms.notificationsAllowed);
+        syncPermsState(perms);
       }
     });
 
@@ -1200,6 +1252,40 @@ export function SettingsPage({
   const handleToggleNotifications = async nextVal => {
     setNotificationsAllowed(nextVal);
     await ProfileAPI.setPermissions({ notificationsAllowed: nextVal });
+  };
+
+  const handleToggleSpecificNotification = async (key, nextVal) => {
+    const patch = { [key]: nextVal };
+    if (nextVal && !notificationsAllowed) {
+      setNotificationsAllowed(true);
+      patch.notificationsAllowed = true;
+    }
+    if (key === 'notifyAppointments') setNotifyAppointments(nextVal);
+    if (key === 'notifyBilling') setNotifyBilling(nextVal);
+    if (key === 'notifyInsurance') setNotifyInsurance(nextVal);
+    if (key === 'notifyMessages') setNotifyMessages(nextVal);
+    if (key === 'notifyPromos') setNotifyPromos(nextVal);
+    await ProfileAPI.setPermissions(patch);
+  };
+
+  const handleSelectLanguage = async nextLang => {
+    setLanguage(nextLang);
+    await ProfileAPI.setPermissions({ language: nextLang });
+  };
+
+  const handleSelectThemeMode = async nextTheme => {
+    setThemeMode(nextTheme);
+    await ProfileAPI.setPermissions({ themeMode: nextTheme });
+  };
+
+  const handleSelectTextSize = async nextSize => {
+    setTextSize(nextSize);
+    await ProfileAPI.setPermissions({ textSize: nextSize });
+  };
+
+  const handleToggleHighContrast = async nextVal => {
+    setHighContrast(nextVal);
+    await ProfileAPI.setPermissions({ highContrast: nextVal });
   };
 
   const handleHistory = () => {
@@ -1321,49 +1407,91 @@ export function SettingsPage({
     }
   };
 
+  const t = getAppTranslations(language);
+  const display = getDisplayConfig({ themeMode, textSize, highContrast });
+  const fs = size => Math.round(size * display.fontScale * 10) / 10;
+
   const menuItems = [
     {
       id: 'terms',
       icon: FileText,
-      label: 'Terms & Conditions',
+      label: t.terms,
       action: () => setLegalPopup('terms'),
     },
     {
       id: 'privacy',
       icon: Lock,
-      label: 'Privacy Policy',
+      label: t.privacy,
       action: () => setLegalPopup('privacy'),
     },
     {
       id: 'history',
       icon: History,
-      label: 'History',
+      label: t.history,
       action: handleHistory,
     },
     {
       id: 'help',
       icon: HelpCircle,
-      label: 'Help & Support',
+      label: t.help,
       action: handleHelp,
     },
     {
       id: 'delete_account',
       icon: Trash2,
-      label: 'Delete Account',
+      label: t.deleteAccount,
       dangerSoft: true,
       action: () => setConfirmDeleteAccount(true),
     },
     {
       id: 'signout',
       icon: LogOut,
-      label: 'Sign Out',
+      label: t.signOut,
       dangerStrong: true,
       action: () => setConfirmSignOut(true),
     },
   ];
 
+  const notificationCategoryItems = [
+    {
+      key: 'notifyAppointments',
+      icon: Calendar,
+      title: t.notifyAppointmentsTitle,
+      desc: t.notifyAppointmentsDesc,
+      value: notifyAppointments,
+    },
+    {
+      key: 'notifyBilling',
+      icon: CreditCard,
+      title: t.notifyBillingTitle,
+      desc: t.notifyBillingDesc,
+      value: notifyBilling,
+    },
+    {
+      key: 'notifyInsurance',
+      icon: ShieldCheck,
+      title: t.notifyInsuranceTitle,
+      desc: t.notifyInsuranceDesc,
+      value: notifyInsurance,
+    },
+    {
+      key: 'notifyMessages',
+      icon: MessageCircle,
+      title: t.notifyMessagesTitle,
+      desc: t.notifyMessagesDesc,
+      value: notifyMessages,
+    },
+    {
+      key: 'notifyPromos',
+      icon: Gift,
+      title: t.notifyPromosTitle,
+      desc: t.notifyPromosDesc,
+      value: notifyPromos,
+    },
+  ];
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: display.bg }]}>
       <AppHeader
         onOpenMessages={onOpenMessages}
         onOpenNotifications={onOpenNotifications}
@@ -1371,11 +1499,16 @@ export function SettingsPage({
       />
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 110 }}>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={[styles.title, { color: display.textPrimary, fontSize: fs(20) }]}>
+          {t.settingsTitle}
+        </Text>
 
-        {/* Profile Card (CARE PASSPORT label removed) */}
+        {/* Profile Card */}
         <TouchableOpacity
-          style={styles.profileBannerCard}
+          style={[
+            styles.profileBannerCard,
+            { backgroundColor: display.cardBg, borderColor: display.isDark ? display.border : '#e0f2fe' },
+          ]}
           onPress={onOpenProfile}
           activeOpacity={0.85}
         >
@@ -1386,28 +1519,280 @@ export function SettingsPage({
             showBlob
           />
           <View style={{ flex: 1 }}>
-            <Text style={styles.bannerName} numberOfLines={1}>
+            <Text
+              style={[styles.bannerName, { color: display.textPrimary, fontSize: fs(17) }]}
+              numberOfLines={1}
+            >
               {profileData?.name || 'My Profile'}
             </Text>
-            <Text style={styles.bannerSub} numberOfLines={1}>
+            <Text
+              style={[styles.bannerSub, { color: display.textSecondary, fontSize: fs(12) }]}
+              numberOfLines={1}
+            >
               {profileData?.email && profileData.email !== 'Not set'
                 ? profileData.email
-                : 'Tap to view & update your personal and medical records'}
+                : t.tapToViewProfile}
             </Text>
           </View>
           <ChevronRight size={20} color="#0ea5e9" />
         </TouchableOpacity>
 
-        {/* Onboarding Permissions & Privacy Toggles */}
-        <Text style={styles.sectionHeader}>Permissions & Privacy</Text>
-        <View style={styles.permissionsCard}>
+        {/* 1. Language & Display Preferences */}
+        <Text style={[styles.sectionHeader, { color: display.textSecondary, fontSize: fs(13) }]}>
+          {t.appPreferencesHeader}
+        </Text>
+        <View
+          style={[
+            styles.permissionsCard,
+            { backgroundColor: display.cardBg, borderColor: display.border },
+          ]}
+        >
+          {/* Language Preference */}
+          <View style={styles.prefBlock}>
+            <View style={styles.permissionLeft}>
+              <Globe size={20} color="#0ea5e9" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.languageTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.languageDesc}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.segmentedRow}>
+              {APP_LANGUAGES.map(lang => {
+                const active = language === lang.id;
+                return (
+                  <TouchableOpacity
+                    key={lang.id}
+                    onPress={() => handleSelectLanguage(lang.id)}
+                    style={[
+                      styles.segmentChip,
+                      { backgroundColor: display.subCardBg, borderColor: display.border },
+                      active && styles.segmentChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentChipText,
+                        { color: display.textSecondary, fontSize: fs(12.5) },
+                        active && styles.segmentChipTextActive,
+                      ]}
+                    >
+                      {lang.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
+
+          {/* Theme / Appearance Preference */}
+          <View style={styles.prefBlock}>
+            <View style={styles.permissionLeft}>
+              {display.isDark ? (
+                <Moon size={20} color="#38bdf8" />
+              ) : (
+                <Sun size={20} color="#0ea5e9" />
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.themeTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.themeDesc}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.segmentedRow}>
+              {THEME_MODES.map(mode => {
+                const active = themeMode === mode.id;
+                return (
+                  <TouchableOpacity
+                    key={mode.id}
+                    onPress={() => handleSelectThemeMode(mode.id)}
+                    style={[
+                      styles.segmentChip,
+                      { backgroundColor: display.subCardBg, borderColor: display.border },
+                      active && styles.segmentChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentChipText,
+                        { color: display.textSecondary, fontSize: fs(12.5) },
+                        active && styles.segmentChipTextActive,
+                      ]}
+                    >
+                      {mode.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
+
+          {/* Text Size Preference */}
+          <View style={styles.prefBlock}>
+            <View style={styles.permissionLeft}>
+              <Type size={20} color="#0ea5e9" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.textSizeTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.textSizeDesc}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.segmentedRow}>
+              {TEXT_SIZES.map(sz => {
+                const active = textSize === sz.id;
+                return (
+                  <TouchableOpacity
+                    key={sz.id}
+                    onPress={() => handleSelectTextSize(sz.id)}
+                    style={[
+                      styles.segmentChip,
+                      { backgroundColor: display.subCardBg, borderColor: display.border },
+                      active && styles.segmentChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentChipText,
+                        { color: display.textSecondary, fontSize: fs(12.5) },
+                        active && styles.segmentChipTextActive,
+                      ]}
+                    >
+                      {sz.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
+
+          {/* High Contrast Display Toggle */}
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionLeft}>
+              <Eye size={20} color="#0ea5e9" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.highContrastTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.highContrastDesc}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={highContrast}
+              onValueChange={handleToggleHighContrast}
+              trackColor={{ false: '#E2E8F0', true: '#7DD3FC' }}
+              thumbColor={highContrast ? '#0284C7' : '#94A3B8'}
+            />
+          </View>
+        </View>
+
+        {/* 2. Specific Notification Preferences */}
+        <Text style={[styles.sectionHeader, { color: display.textSecondary, fontSize: fs(13) }]}>
+          {t.notificationsHeader}
+        </Text>
+        <View
+          style={[
+            styles.permissionsCard,
+            { backgroundColor: display.cardBg, borderColor: display.border },
+          ]}
+        >
+          {/* Master Notifications Toggle */}
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionLeft}>
+              <Bell size={20} color="#0ea5e9" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.allNotificationsTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.allNotificationsDesc}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={notificationsAllowed}
+              onValueChange={handleToggleNotifications}
+              trackColor={{ false: '#E2E8F0', true: '#7DD3FC' }}
+              thumbColor={notificationsAllowed ? '#0284C7' : '#94A3B8'}
+            />
+          </View>
+
+          {/* Individual Notification Category Switches */}
+          {notificationCategoryItems.map(cat => {
+            const CatIcon = cat.icon;
+            const effectiveEnabled = notificationsAllowed && cat.value;
+            return (
+              <React.Fragment key={cat.key}>
+                <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
+                <View style={[styles.permissionRow, !notificationsAllowed && { opacity: 0.55 }]}>
+                  <View style={styles.permissionLeft}>
+                    <CatIcon size={19} color={effectiveEnabled ? '#0ea5e9' : '#94a3b8'} />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.permissionTitle,
+                          { color: display.textPrimary, fontSize: fs(14.5) },
+                        ]}
+                      >
+                        {cat.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.permissionDesc,
+                          { color: display.textSecondary, fontSize: fs(12) },
+                        ]}
+                      >
+                        {cat.desc}
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={effectiveEnabled}
+                    onValueChange={val => handleToggleSpecificNotification(cat.key, val)}
+                    trackColor={{ false: '#E2E8F0', true: '#7DD3FC' }}
+                    thumbColor={effectiveEnabled ? '#0284C7' : '#94A3B8'}
+                  />
+                </View>
+              </React.Fragment>
+            );
+          })}
+        </View>
+
+        {/* 3. Onboarding Permissions & Privacy Toggles */}
+        <Text style={[styles.sectionHeader, { color: display.textSecondary, fontSize: fs(13) }]}>
+          {t.permissionsHeader}
+        </Text>
+        <View
+          style={[
+            styles.permissionsCard,
+            { backgroundColor: display.cardBg, borderColor: display.border },
+          ]}
+        >
           <View style={styles.permissionRow}>
             <View style={styles.permissionLeft}>
               <ShieldCheck size={20} color="#0ea5e9" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.permissionTitle}>Insurance Data Processing</Text>
-                <Text style={styles.permissionDesc}>
-                  Estimate real-time PhilHealth & HMO coverage deductions
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.insuranceConsentTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.insuranceConsentDesc}
                 </Text>
               </View>
             </View>
@@ -1419,15 +1804,17 @@ export function SettingsPage({
             />
           </View>
 
-          <View style={styles.permissionDivider} />
+          <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
 
           <View style={styles.permissionRow}>
             <View style={styles.permissionLeft}>
               <Building2 size={20} color="#0ea5e9" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.permissionTitle}>Hospital Data Sharing</Text>
-                <Text style={styles.permissionDesc}>
-                  Share digital medical forms with partner facilities you choose
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.dataSharingTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.dataSharingDesc}
                 </Text>
               </View>
             </View>
@@ -1439,15 +1826,17 @@ export function SettingsPage({
             />
           </View>
 
-          <View style={styles.permissionDivider} />
+          <View style={[styles.permissionDivider, { backgroundColor: display.divider }]} />
 
           <View style={styles.permissionRow}>
             <View style={styles.permissionLeft}>
               <MapPin size={20} color="#0ea5e9" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.permissionTitle}>Location Access</Text>
-                <Text style={styles.permissionDesc}>
-                  Enable smart hospital routing and nearby facility suggestions
+                <Text style={[styles.permissionTitle, { color: display.textPrimary, fontSize: fs(15) }]}>
+                  {t.locationTitle}
+                </Text>
+                <Text style={[styles.permissionDesc, { color: display.textSecondary, fontSize: fs(12) }]}>
+                  {t.locationDesc}
                 </Text>
               </View>
             </View>
@@ -1458,29 +1847,11 @@ export function SettingsPage({
               thumbColor={locationAllowed ? '#0284C7' : '#94A3B8'}
             />
           </View>
-
-          <View style={styles.permissionDivider} />
-
-          <View style={styles.permissionRow}>
-            <View style={styles.permissionLeft}>
-              <Bell size={20} color="#0ea5e9" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.permissionTitle}>Notifications</Text>
-                <Text style={styles.permissionDesc}>
-                  Receive real-time updates on appointments, billing, and alerts
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={notificationsAllowed}
-              onValueChange={handleToggleNotifications}
-              trackColor={{ false: '#E2E8F0', true: '#7DD3FC' }}
-              thumbColor={notificationsAllowed ? '#0284C7' : '#94A3B8'}
-            />
-          </View>
         </View>
 
-        <Text style={styles.sectionHeader}>General & Legal</Text>
+        <Text style={[styles.sectionHeader, { color: display.textSecondary, fontSize: fs(13) }]}>
+          {t.generalHeader}
+        </Text>
         <View style={styles.menuList}>
           {menuItems.map(item => {
             const Icon = item.icon;
@@ -1496,7 +1867,10 @@ export function SettingsPage({
                     ? styles.menuItemDangerStrong
                     : isSoftRed
                       ? styles.menuItemDangerSoft
-                      : styles.menuItemNormal,
+                      : [
+                          styles.menuItemNormal,
+                          { backgroundColor: display.cardBg, borderColor: display.border },
+                        ],
                 ]}
               >
                 <View style={styles.menuItemLeft}>
@@ -1507,6 +1881,7 @@ export function SettingsPage({
                   <Text
                     style={[
                       styles.menuItemLabel,
+                      { color: display.textPrimary, fontSize: fs(16) },
                       isStrongRed && styles.menuItemLabelDangerStrong,
                       isSoftRed && styles.menuItemLabelDangerSoft,
                     ]}
@@ -1705,6 +2080,42 @@ const styles = StyleSheet.create({
   permissionDivider: {
     height: 1,
     backgroundColor: '#f3f4f6',
+  },
+  prefBlock: {
+    paddingVertical: 12,
+    gap: 10,
+  },
+  segmentedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+    paddingLeft: 32,
+  },
+  segmentChip: {
+    flex: 1,
+    minWidth: 84,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentChipActive: {
+    borderColor: '#0ea5e9',
+    backgroundColor: '#e0f2fe',
+  },
+  segmentChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  segmentChipTextActive: {
+    color: '#0284c7',
+    fontWeight: '700',
   },
   menuList: {
     gap: 8,

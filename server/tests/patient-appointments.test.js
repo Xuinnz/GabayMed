@@ -6,6 +6,7 @@ const {
   getPatientSchedule,
   cancelPatientAppointment,
   validateSlotAvailability,
+  createPatientAppointment,
   DEFAULT_CANCELLATION_NOTICE_HOURS
 } = require('../lib/patient-appointments');
 
@@ -248,4 +249,144 @@ test('validateSlotAvailability: detects double-booking conflicts', async () => {
 
   assert.equal(check.available, false);
   assert.equal(check.conflicts.length, 1);
+});
+
+test('createPatientAppointment creates patient with non-null created_at and books appointment', async () => {
+  let insertedPatient = null;
+  let insertedAppointment = null;
+
+  const mockAdmin = {
+    from: (table) => {
+      if (table === 'patients') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                limit: () => Promise.resolve({ data: [], error: null })
+              }),
+              not: () => ({
+                limit: () => Promise.resolve({ data: [], error: null })
+              })
+            }),
+            not: () => ({
+              limit: () => Promise.resolve({ data: [{ insurance_id: 'ins-default-1' }], error: null })
+            })
+          }),
+          insert: (rows) => {
+            insertedPatient = rows[0];
+            if (!insertedPatient.created_at) {
+              return {
+                select: () => ({
+                  single: () => Promise.resolve({
+                    data: null,
+                    error: { message: 'null value in column "created_at" of relation "patients" violates not-null constraint' }
+                  })
+                })
+              };
+            }
+            if (!insertedPatient.insurance_id) {
+              return {
+                select: () => ({
+                  single: () => Promise.resolve({
+                    data: null,
+                    error: { message: 'null value in column "insurance_id" of relation "patients" violates not-null constraint' }
+                  })
+                })
+              };
+            }
+            return {
+              select: () => ({
+                single: () => Promise.resolve({
+                  data: { patient_id: 'new-pat-1' },
+                  error: null
+                })
+              })
+            };
+          }
+        };
+      }
+      if (table === 'insurance_plans') {
+        return {
+          select: () => ({
+            limit: () => Promise.resolve({
+              data: [{ insurance_id: 'ins-plan-1' }],
+              error: null
+            })
+          })
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () => Promise.resolve({
+                data: {
+                  first_name: 'Juan',
+                  middle_name: 'D',
+                  last_name: 'Dela Cruz',
+                  full_name: 'Juan D Dela Cruz',
+                  phone_number: '+639171234567',
+                  address: 'Manila',
+                  date_of_birth: '1995-05-15',
+                  gender: 'Male'
+                },
+                error: null
+              })
+            })
+          })
+        };
+      }
+      if (table === 'procedures') {
+        return {
+          select: () => ({
+            limit: () => Promise.resolve({
+              data: [{ procedure_id: 101, name: 'General Check-up' }],
+              error: null
+            })
+          })
+        };
+      }
+      if (table === 'appointments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              gte: () => ({
+                lte: () => ({
+                  neq: () => Promise.resolve({ data: [], error: null })
+                })
+              })
+            })
+          }),
+          insert: (rows) => {
+            insertedAppointment = rows[0];
+            return {
+              select: () => ({
+                single: () => Promise.resolve({
+                  data: { appointment_id: 'apt-999', ...insertedAppointment },
+                  error: null
+                })
+              })
+            };
+          }
+        };
+      }
+    }
+  };
+
+  const result = await createPatientAppointment(mockAdmin, 'user-1', {
+    facilityId: 'facility-d7f1b581-3b68-491d-a515-aeb94a5bee3f',
+    providerId: 'prov-1',
+    date: '2026-12-05',
+    time: '09:00 AM',
+    serviceName: 'General Check-up',
+    notes: 'Booked via GabayMed App'
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(insertedPatient.created_at, 'created_at must be populated on patients insert');
+  assert.equal(insertedPatient.insurance_id, 'ins-plan-1', 'insurance_id must be populated on patients insert');
+  assert.equal(insertedPatient.facility_id, 'd7f1b581-3b68-491d-a515-aeb94a5bee3f');
+  assert.equal(insertedAppointment.patient_id, 'new-pat-1');
+  assert.equal(insertedAppointment.procedure_id, 101);
+  assert.equal(result.data.appointment_id, 'apt-999');
 });

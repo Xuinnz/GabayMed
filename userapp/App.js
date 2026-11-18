@@ -29,7 +29,13 @@ export default function App() {
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
+  const [preselectedService, setPreselectedService] = useState(null);
   const [showMyAppointments, setShowMyAppointments] = useState(false);
+  const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0);
+
+  const triggerAppointmentRefresh = () => {
+    setAppointmentRefreshKey(k => k + 1);
+  };
 
   const handleOpenProfilePage = () => {
     setShowProfile(true);
@@ -137,19 +143,26 @@ export default function App() {
         <View style={styles.container}>
           <View style={[styles.tabLayer, activeTab !== 'home' && styles.hiddenTab]}>
             <HomePage
+              isActive={activeTab === 'home'}
               onOpenMessages={() => setShowMessages(true)}
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
-              onOpenAppointmentBooking={() => setShowAppointment(true)}
+              onOpenAppointmentBooking={serviceLabel => {
+                setPreselectedService(typeof serviceLabel === 'string' ? serviceLabel : null);
+                setShowAppointment(true);
+              }}
               onOpenMyAppointments={() => setShowMyAppointments(true)}
               onNavigateToCases={() => setActiveTab('cases')}
+              refreshTrigger={appointmentRefreshKey}
             />
           </View>
           <View style={[styles.tabLayer, activeTab !== 'cases' && styles.hiddenTab]}>
             <SeekMedicalCare
+              isActive={activeTab === 'cases'}
               onOpenMessages={() => setShowMessages(true)}
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
+              onAppointmentBooked={triggerAppointmentRefresh}
             />
           </View>
           <View style={[styles.tabLayer, activeTab !== 'facilities' && styles.hiddenTab]}>
@@ -158,6 +171,7 @@ export default function App() {
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
               onOpenMyAppointments={() => setShowMyAppointments(true)}
+              refreshTrigger={appointmentRefreshKey}
             />
           </View>
           <View style={[styles.tabLayer, activeTab !== 'settings' && styles.hiddenTab]}>
@@ -177,10 +191,23 @@ export default function App() {
           setActiveTab(tab);
         }}
       />
-      <AppointmentBooking visible={showAppointment} onClose={() => setShowAppointment(false)} />
+      <AppointmentBooking
+        visible={showAppointment}
+        initialService={preselectedService}
+        onBooked={triggerAppointmentRefresh}
+        onClose={() => {
+          setShowAppointment(false);
+          setPreselectedService(null);
+          triggerAppointmentRefresh();
+        }}
+      />
       <MyAppointmentsModal
         visible={showMyAppointments}
-        onClose={() => setShowMyAppointments(false)}
+        onChanged={triggerAppointmentRefresh}
+        onClose={() => {
+          setShowMyAppointments(false);
+          triggerAppointmentRefresh();
+        }}
         onScheduleNew={() => setShowAppointment(true)}
       />
       <StatusBar style="dark" />

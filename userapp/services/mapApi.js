@@ -101,7 +101,16 @@ export function formatDistance(km) {
   return km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
 }
 
+let cachedFacilitiesResult = null;
+
 const MapAPI = {
+  /**
+   * Clears the facilities in-memory cache to force a fresh fetch.
+   */
+  clearFacilitiesCache() {
+    cachedFacilitiesResult = null;
+  },
+
   /**
    * Requests foreground location permission from the user, respecting the in-app Location Access toggle.
    * If disabled in Settings or denied, returns `{ granted: false, coords: null }`
@@ -154,6 +163,14 @@ const MapAPI = {
    * `/api/facilities-map` endpoint (with direct Supabase fallback).
    */
   async getFacilitiesLocations(userCoords = null) {
+    if (cachedFacilitiesResult && cachedFacilitiesResult.length > 0) {
+      if (!userCoords) return cachedFacilitiesResult;
+      return cachedFacilitiesResult.map(f => {
+        const km = getDistanceKm(userCoords.latitude, userCoords.longitude, f.latitude, f.longitude);
+        return { ...f, distanceKm: km, distanceLabel: formatDistance(km) };
+      }).sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
+    }
+
     let rawList = [];
 
     // 1. Try backend endpoint `/api/facilities-map`
@@ -164,7 +181,7 @@ const MapAPI = {
       clearTimeout(timer);
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json?.facilities)) {
+        if (Array.isArray(json?.facilities) && json.facilities.length > 0) {
           rawList = json.facilities;
         }
       }
@@ -266,6 +283,7 @@ const MapAPI = {
         name: f.name || f.title || 'Healthcare Facility',
         abbreviation: f.abbreviation || '',
         address: f.address || f.location || 'Address not specified',
+        location: f.address || f.location || 'Address not specified',
         phone: f.phone || f.contact_num || '',
         email: f.email || '',
         services: parseServicesOffered(f.services ?? f.services_offered),
@@ -277,6 +295,10 @@ const MapAPI = {
         distanceLabel: formatDistance(distKm),
       };
     });
+
+    if (mapped.length > 0) {
+      cachedFacilitiesResult = mapped;
+    }
 
     if (userCoords) {
       mapped.sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));

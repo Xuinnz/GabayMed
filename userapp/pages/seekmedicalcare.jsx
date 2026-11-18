@@ -6,7 +6,13 @@ import { MapViewSection } from '../components/map-view-section';
 import { AppointmentBooking } from '../components/appointment';
 import BrowseAPI from '../services/browseApi';
 
-export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenProfile }) {
+export function SeekMedicalCare({
+  isActive = true,
+  onOpenMessages,
+  onOpenNotifications,
+  onOpenProfile,
+  onAppointmentBooked,
+}) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [bookingFacility, setBookingFacility] = useState(null); // ADD THIS: Separate state for booking
   const [showAppointmentBooking, setShowAppointmentBooking] = useState(false);
@@ -70,7 +76,7 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenPro
       <ScrollView style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Seek Medical Care</Text>
-          <MapViewSection />
+          <MapViewSection isActive={isActive} facilities={displayedFacilities} />
         </View>
 
         <View style={styles.section}>
@@ -87,9 +93,9 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenPro
             <ActivityIndicator size="large" color="#0ea5e9" style={{ marginTop: 20 }} />
           ) : !showAllHospitals ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hospitalList}>
-              {displayedFacilities.map((hospital) => (
+              {displayedFacilities.map((hospital, idx) => (
                 <TouchableOpacity
-                  key={hospital.id}
+                  key={`hosp-scroll-${hospital.id}-${idx}`}
                   style={[styles.hospitalCard, !hospital.isGabay && { opacity: 0.5 }]}
                   onPress={() => handleFacilityClick(hospital)}
                   disabled={!hospital.isGabay}
@@ -133,9 +139,9 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenPro
           </ScrollView>
           ) : (
             <View style={styles.hospitalGrid}>
-              {displayedFacilities.map((hospital) => (
+              {displayedFacilities.map((hospital, idx) => (
                 <TouchableOpacity
-                  key={hospital.id}
+                  key={`hosp-grid-${hospital.id}-${idx}`}
                   style={[styles.hospitalCardGrid, !hospital.isGabay && { opacity: 0.5 }]}
                   onPress={() => handleFacilityClick(hospital)}
                   disabled={!hospital.isGabay}
@@ -327,10 +333,12 @@ export function SeekMedicalCare({ onOpenMessages, onOpenNotifications, onOpenPro
       {/* Appointment Booking Component */}
       <AppointmentBooking
         visible={showAppointmentBooking}
+        onBooked={onAppointmentBooked}
         onClose={() => {
           setShowAppointmentBooking(false);
           setSelectedService(null);
           setBookingFacility(null); // Clear on close
+          if (onAppointmentBooked) onAppointmentBooked();
         }}
         initialService={selectedService}
         facilityId={bookingFacility} // USE THIS instead of selectedFacility

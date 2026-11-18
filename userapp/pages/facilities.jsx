@@ -6,7 +6,7 @@ import { AppointmentBooking } from '../components/appointment';
 import { GradientButton, GradientText, GradientIcon } from '../components/ui/gradient-button';
 import FacilitiesAPI from '../services/facilitiesApi';
 
-export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenMyAppointments }) {
+export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenMyAppointments, refreshTrigger }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showAllBalances, setShowAllBalances] = useState(false);
   const [showAllSchedules, setShowAllSchedules] = useState(false);
@@ -77,7 +77,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
 
   useEffect(() => {
     fetchFacilitiesData();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchFacilitiesData = async () => {
     try {
@@ -148,10 +148,10 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
 
   const currentFacility = facilities.find((f) => f.id === selectedFacility);
 
-  const renderActivityItem = (activity) => {
+  const renderActivityItem = (activity, index) => {
     const isCharge = activity.amount > 0;
     return (
-      <View key={activity.id} style={styles.activityItem}>
+      <View key={`act-${activity.id || index}-${index}`} style={styles.activityItem}>
         <View style={styles.activityLeft}>
           <View style={[
             styles.activityIcon,
@@ -231,9 +231,9 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
           {!selectedFacility && (
             <View style={styles.facilitySelectorContainer}>
               {facilities.length > 0 ? (
-                facilities.map((facility) => (
+                facilities.map((facility, idx) => (
                   <TouchableOpacity
-                    key={facility.id}
+                    key={`fac-${facility.id}-${idx}`}
                     onPress={() => setSelectedFacility(facility.id)}
                     style={styles.facilitySelectorCard}
                   >
@@ -250,9 +250,18 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
                   </TouchableOpacity>
                 ))
               ) : (
-                <Text style={{ textAlign: 'center', color: '#6b7280', marginTop: 20 }}>
-                  No facilities linked to your account.
-                </Text>
+                <View style={{ alignItems: 'center', marginTop: 20 }}>
+                  <Text style={{ textAlign: 'center', color: '#6b7280', marginBottom: 14 }}>
+                    No facilities linked to your account yet.
+                  </Text>
+                  <GradientButton
+                    onPress={() => setShowAppointment(true)}
+                    style={[styles.scheduleButton, { paddingHorizontal: 24 }]}
+                  >
+                    <Calendar size={20} color="#66BAFF" fill="#fff" />
+                    <Text style={styles.scheduleButtonText}>Schedule New Appointment</Text>
+                  </GradientButton>
+                </View>
               )}
             </View>
           )}
@@ -281,14 +290,14 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
                 <Text style={{ color: '#9ca3af', marginTop: 12, fontStyle: 'italic' }}>No appointments scheduled.</Text>
               ) : showAllSchedules ? (
                 <View style={styles.scheduleGrid}>
-                  {schedules.map((schedule) => (
-                    <ScheduleCard key={schedule.id} schedule={schedule} isSmall />
+                  {schedules.map((schedule, idx) => (
+                    <ScheduleCard key={`sched-grid-${schedule.id}-${idx}`} schedule={schedule} isSmall />
                   ))}
                 </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scheduleScroll}>
-                  {schedules.map((schedule) => (
-                    <ScheduleCard key={schedule.id} schedule={schedule} />
+                  {schedules.map((schedule, idx) => (
+                    <ScheduleCard key={`sched-scroll-${schedule.id}-${idx}`} schedule={schedule} />
                   ))}
                 </ScrollView>
               )}
@@ -466,7 +475,11 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
 
       <AppointmentBooking
         visible={showAppointment}
-        onClose={() => setShowAppointment(false)}
+        onBooked={fetchFacilitiesData}
+        onClose={() => {
+          setShowAppointment(false);
+          fetchFacilitiesData();
+        }}
         facilityId={selectedFacility}
       />
     </View>

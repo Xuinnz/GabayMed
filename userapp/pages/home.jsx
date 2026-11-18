@@ -1,29 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Calendar, Clock, Plus } from 'lucide-react-native';
+import { Calendar, Clock, Plus, ChevronRight } from 'lucide-react-native';
 import GeoAltFill from 'react-native-bootstrap-icons/icons/geo-alt-fill';
 import { AppHeader } from '../components/app-header';
 import { MapViewSection } from '../components/map-view-section';
 import { BrowseServices } from '../components/browse-services';
 import HomeAPI from '../services/homeApi';
 
-export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenAppointmentBooking, onNavigateToCases, onOpenMyAppointments }) {
+export function HomePage({
+  isActive = true,
+  onOpenMessages,
+  onOpenNotifications,
+  onOpenProfile,
+  onOpenAppointmentBooking,
+  onNavigateToCases,
+  onOpenMyAppointments,
+  refreshTrigger,
+}) {
   const [upcomingAppointment, setUpcomingAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAppointmentData();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchAppointmentData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch real data from API
       const data = await HomeAPI.getHomeData();
-      
       setUpcomingAppointment(data.upcomingAppointment);
-      
     } catch (error) {
       console.error('Error fetching home data:', error);
     } finally {
@@ -32,34 +37,33 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
   };
 
   const handleServiceSelect = (service) => {
-    console.log('Selected service:', service.label);
-    // TODO: Navigate to service details or booking
+    if (onOpenAppointmentBooking) {
+      onOpenAppointmentBooking(service?.label || null);
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
       {/* App Header */}
-      <AppHeader onOpenMessages={onOpenMessages} onOpenNotifications={onOpenNotifications} onOpenProfile={onOpenProfile} />
+      <AppHeader
+        onOpenMessages={onOpenMessages}
+        onOpenNotifications={onOpenNotifications}
+        onOpenProfile={onOpenProfile}
+      />
 
       {/* Upcoming Appointment Section */}
       <View style={[styles.section, styles.firstSection]}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleContainer}>
             <View style={styles.redDot} />
-            <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
+            <Text style={styles.sectionTitle} numberOfLines={1}>
+              Upcoming Appointment
+            </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {onOpenMyAppointments && (
-              <TouchableOpacity onPress={onOpenMyAppointments} style={styles.scheduleButton}>
-                <Calendar size={15} color="#0ea5e9" />
-                <Text style={styles.scheduleButtonText}>Manage</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={onOpenAppointmentBooking} style={styles.scheduleButton}>
-              <Plus size={16} color="#0ea5e9" />
-              <Text style={styles.scheduleButtonText}>Schedule</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => onOpenAppointmentBooking && onOpenAppointmentBooking(null)} style={styles.scheduleButton}>
+            <Plus size={16} color="#0ea5e9" />
+            <Text style={styles.scheduleButtonText}>Schedule</Text>
+          </TouchableOpacity>
         </View>
 
         {loading ? (
@@ -67,11 +71,7 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
             <ActivityIndicator size="large" color="#60a5fa" />
           </View>
         ) : upcomingAppointment ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={onOpenMyAppointments}
-            style={styles.card}
-          >
+          <View style={styles.card}>
             <View style={styles.cardHeader}>
               <GeoAltFill color="#60a5fa" size={32} top={12} />
               <View style={styles.cardContent}>
@@ -90,13 +90,27 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
                 <Text style={styles.badgeText}>{upcomingAppointment.time}</Text>
               </View>
             </View>
-          </TouchableOpacity>
+            {onOpenMyAppointments && (
+              <TouchableOpacity onPress={onOpenMyAppointments} style={styles.manageCardButton}>
+                <Calendar size={15} color="#0284c7" />
+                <Text style={styles.manageCardButtonText}>View / Cancel Appointment</Text>
+                <ChevronRight size={16} color="#0284c7" style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
           <View style={[styles.card, styles.emptyCard]}>
             <Text style={styles.emptyText}>No upcoming appointments</Text>
-            <TouchableOpacity onPress={onOpenAppointmentBooking} style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>Schedule an appointment</Text>
-            </TouchableOpacity>
+            <View style={styles.emptyActionsRow}>
+              <TouchableOpacity onPress={() => onOpenAppointmentBooking && onOpenAppointmentBooking(null)} style={styles.emptyButton}>
+                <Text style={styles.emptyButtonText}>Schedule an appointment</Text>
+              </TouchableOpacity>
+              {onOpenMyAppointments && (
+                <TouchableOpacity onPress={onOpenMyAppointments} style={styles.secondaryOutlineButton}>
+                  <Text style={styles.secondaryOutlineButtonText}>My Appointments</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -104,12 +118,12 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
       {/* Seek Medical Care Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Seek Medical Care</Text>
-        <MapViewSection />
+        <MapViewSection isActive={isActive} />
       </View>
 
       {/* Browse by Services */}
       <View style={[styles.section, styles.lastSection]}>
-        <BrowseServices 
+        <BrowseServices
           showTitle={true}
           initialShowAll={false}
           onServiceSelect={handleServiceSelect}
@@ -139,23 +153,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 8,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   redDot: {
-    width: 15,
-    height: 15,
-    borderRadius: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#ef4444',
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '600',
     color: '#1f2937',
-    font: 'bold',
+    flexShrink: 1,
   },
   seeAllText: {
     fontSize: 14,
@@ -166,10 +182,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   scheduleButtonText: {
     color: '#0ea5e9',
-    fontWeight: '500',
+    fontWeight: '600',
     fontSize: 14,
   },
   card: {
@@ -216,6 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1,
   },
   badgeSeparator: {
     width: 1,
@@ -228,6 +249,20 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontWeight: '500',
   },
+  manageCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  manageCardButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0284c7',
+  },
   loadingCard: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -235,21 +270,40 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: 28,
   },
   emptyText: {
     fontSize: 16,
     color: '#6b7280',
     marginBottom: 16,
   },
+  emptyActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+  },
   emptyButton: {
     backgroundColor: '#0ea5e9',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
   },
   emptyButtonText: {
     color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  secondaryOutlineButton: {
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  secondaryOutlineButtonText: {
+    color: '#0284c7',
     fontWeight: '600',
     fontSize: 14,
   },

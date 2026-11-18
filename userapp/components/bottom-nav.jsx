@@ -1,8 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Home, Settings, BriefcaseMedical, Hospital } from 'lucide-react-native';
+import ProfileAPI, { getDisplayConfig } from '../services/profileApi';
 
 export function BottomNav({ activeTab, onTabChange }) {
+  const [perms, setPerms] = useState(() => ProfileAPI.getCachedPermissions() || {});
+
+  useEffect(() => {
+    ProfileAPI.getPermissions()
+      .then(p => {
+        if (p) setPerms(p);
+      })
+      .catch(() => {});
+    return ProfileAPI.subscribePermissions(p => {
+      if (p) setPerms(p);
+    });
+  }, []);
+
+  const display = getDisplayConfig(perms);
+
   const navItems = [
     { id: 'home', icon: Home, label: 'Home', size: 22 },
     { id: 'cases', icon: BriefcaseMedical, label: 'Cases', size: 26 },
@@ -11,7 +27,15 @@ export function BottomNav({ activeTab, onTabChange }) {
   ];
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: display.cardBg,
+          borderTopColor: display.border,
+        },
+      ]}
+    >
       <View style={styles.navContent}>
         {navItems.map(item => {
           const Icon = item.icon;
