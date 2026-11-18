@@ -7,7 +7,7 @@ import { MapViewSection } from '../components/map-view-section';
 import { BrowseServices } from '../components/browse-services';
 import HomeAPI from '../services/homeApi';
 
-export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenAppointmentBooking, onNavigateToCases }) {
+export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenAppointmentBooking, onNavigateToCases, onOpenMyAppointments }) {
   const [upcomingAppointment, setUpcomingAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -48,10 +48,18 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
             <View style={styles.redDot} />
             <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
           </View>
-          <TouchableOpacity onPress={onOpenAppointmentBooking} style={styles.scheduleButton}>
-            <Plus size={16} color="#0ea5e9" />
-            <Text style={styles.scheduleButtonText}>Schedule</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {onOpenMyAppointments && (
+              <TouchableOpacity onPress={onOpenMyAppointments} style={styles.scheduleButton}>
+                <Calendar size={15} color="#0ea5e9" />
+                <Text style={styles.scheduleButtonText}>Manage</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={onOpenAppointmentBooking} style={styles.scheduleButton}>
+              <Plus size={16} color="#0ea5e9" />
+              <Text style={styles.scheduleButtonText}>Schedule</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -59,7 +67,11 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
             <ActivityIndicator size="large" color="#60a5fa" />
           </View>
         ) : upcomingAppointment ? (
-          <View style={styles.card}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={onOpenMyAppointments}
+            style={styles.card}
+          >
             <View style={styles.cardHeader}>
               <GeoAltFill color="#60a5fa" size={32} top={12} />
               <View style={styles.cardContent}>
@@ -78,7 +90,7 @@ export function HomePage({ onOpenMessages, onOpenNotifications, onOpenProfile, o
                 <Text style={styles.badgeText}>{upcomingAppointment.time}</Text>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         ) : (
           <View style={[styles.card, styles.emptyCard]}>
             <Text style={styles.emptyText}>No upcoming appointments</Text>

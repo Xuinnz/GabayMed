@@ -10,6 +10,7 @@ import { MyFacilities } from './pages/facilities';
 import { NotificationsPage } from './pages/notifications';
 import { BottomNav } from './components/bottom-nav';
 import { AppointmentBooking } from './components/appointment';
+import { MyAppointmentsModal } from './components/my-appointments';
 import { LoginPage } from './pages/auth/login';
 import { RegisterPage } from './pages/auth/register';
 import { ForgotPasswordPage } from './pages/auth/forgot-password';
@@ -28,6 +29,7 @@ export default function App() {
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
+  const [showMyAppointments, setShowMyAppointments] = useState(false);
 
   const handleOpenProfilePage = () => {
     setShowProfile(true);
@@ -44,6 +46,7 @@ export default function App() {
         setShowMessages(false);
         setShowNotifications(false);
         setShowAppointment(false);
+        setShowMyAppointments(false);
         setActiveTab('home');
       }
     });
@@ -138,6 +141,7 @@ export default function App() {
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
               onOpenAppointmentBooking={() => setShowAppointment(true)}
+              onOpenMyAppointments={() => setShowMyAppointments(true)}
               onNavigateToCases={() => setActiveTab('cases')}
             />
           </View>
@@ -153,6 +157,7 @@ export default function App() {
               onOpenMessages={() => setShowMessages(true)}
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
+              onOpenMyAppointments={() => setShowMyAppointments(true)}
             />
           </View>
           <View style={[styles.tabLayer, activeTab !== 'settings' && styles.hiddenTab]}>
@@ -173,6 +178,11 @@ export default function App() {
         }}
       />
       <AppointmentBooking visible={showAppointment} onClose={() => setShowAppointment(false)} />
+      <MyAppointmentsModal
+        visible={showMyAppointments}
+        onClose={() => setShowMyAppointments(false)}
+        onScheduleNew={() => setShowAppointment(true)}
+      />
       <StatusBar style="dark" />
     </View>
   );

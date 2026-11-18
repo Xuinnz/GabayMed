@@ -6,7 +6,7 @@ import { AppointmentBooking } from '../components/appointment';
 import { GradientButton, GradientText, GradientIcon } from '../components/ui/gradient-button';
 import FacilitiesAPI from '../services/facilitiesApi';
 
-export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfile }) {
+export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfile, onOpenMyAppointments }) {
   const [selectedFacility, setSelectedFacility] = useState(null);
   const [showAllBalances, setShowAllBalances] = useState(false);
   const [showAllSchedules, setShowAllSchedules] = useState(false);
@@ -43,7 +43,11 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
     const { badge, text } = statusStyles[schedule.status] || { badge: styles.scheduledBadge, text: styles.scheduledText };
 
     return (
-      <View style={isSmall ? styles.scheduleCardGrid : styles.scheduleCard}>
+      <TouchableOpacity
+        activeOpacity={0.88}
+        onPress={onOpenMyAppointments}
+        style={isSmall ? styles.scheduleCardGrid : styles.scheduleCard}
+      >
         <View style={styles.scheduleTopRow}>
           <GradientIcon style={[styles.scheduleCalendarIcon, isSmall && { width: 35, height: 35, marginTop: 12 }]}>
             <Calendar size={isSmall ? 18 : 24} color="#fff" />
@@ -67,7 +71,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
           <Text style={styles.scheduleDoctor}>{schedule.doctor}</Text>
           <Text style={styles.scheduleRoom}>{schedule.room}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -259,11 +263,18 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Your Schedule</Text>
-                {schedules.length > 2 && (
-                  <TouchableOpacity onPress={() => setShowAllSchedules(!showAllSchedules)}>
-                    <Text style={styles.seeAllButton}>{showAllSchedules ? 'Show Less' : 'See All'}</Text>
-                  </TouchableOpacity>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {onOpenMyAppointments && (
+                    <TouchableOpacity onPress={onOpenMyAppointments}>
+                      <Text style={[styles.seeAllButton, { color: '#0ea5e9' }]}>Manage</Text>
+                    </TouchableOpacity>
+                  )}
+                  {schedules.length > 2 && (
+                    <TouchableOpacity onPress={() => setShowAllSchedules(!showAllSchedules)}>
+                      <Text style={styles.seeAllButton}>{showAllSchedules ? 'Show Less' : 'See All'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
               {schedules.length === 0 ? (
@@ -456,6 +467,7 @@ export function MyFacilities({ onOpenMessages, onOpenNotifications, onOpenProfil
       <AppointmentBooking
         visible={showAppointment}
         onClose={() => setShowAppointment(false)}
+        facilityId={selectedFacility}
       />
     </View>
   );

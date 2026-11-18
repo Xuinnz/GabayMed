@@ -5,6 +5,7 @@ const firstPasswordHandler = require('./api/first-password');
 const loginHandler = require('./api/login');
 const patientAuth = require('./api/patient-auth');
 const facilitiesMapHandler = require('./api/facilities-map');
+const patientAppointmentsHandler = require('./api/patient-appointments');
 
 const routes = {
   '/api/providers': providerHandler, '/api/first-password': firstPasswordHandler, '/api/login': loginHandler,
@@ -12,7 +13,8 @@ const routes = {
   '/api/patient-login': patientAuth.login, '/api/patient-session': patientAuth.session,
   '/api/patient-onboarding': patientAuth.onboarding, '/api/patient-profile': patientAuth.profile,
   '/api/patient-reset-password': patientAuth.resetPassword, '/api/patient-logout': patientAuth.logout,
-  '/api/facilities-map': facilitiesMapHandler
+  '/api/facilities-map': facilitiesMapHandler,
+  '/api/patient-appointments': patientAppointmentsHandler
 };
 
 function createServer() {
