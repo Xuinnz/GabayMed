@@ -26,3 +26,7 @@ The inactivity control is a browser convenience, not server-enforced session exp
 - Leave all tabs idle for 30 minutes; resume a hidden tab and confirm login is required.
 - Confirm staff cannot provision providers by calling the endpoint directly.
 - After RLS changes, test both clinic and patient applications before production rollout.
+
+## Health Record Vault (US-3.7)
+
+Run `security/health-records.sql` once in the SQL Editor, then restart the backend. It creates `public.health_records` (patients can only SELECT their own rows; all writes go through `/api/patient-health-records`) and a private `health-records` Storage bucket limited to PDF/JPG/PNG/HEIC/WEBP files up to 10 MB. Files are only reachable through 5-minute signed URLs. Records with `can_delete = false` (clinic-issued) cannot be deleted from the app. Deleting a patient account also removes their vault files.

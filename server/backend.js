@@ -8,6 +8,7 @@ const facilitiesMapHandler = require('./api/facilities-map');
 const patientAppointmentsHandler = require('./api/patient-appointments');
 const patientBillingHandler = require('./api/billing');
 const patientClaimsHandler = require('./api/patient-claims');
+const healthRecordsHandler = require('./api/health-records');
 
 const routes = {
   '/api/providers': providerHandler, '/api/first-password': firstPasswordHandler, '/api/login': loginHandler,
@@ -18,7 +19,8 @@ const routes = {
   '/api/facilities-map': facilitiesMapHandler,
   '/api/patient-appointments': patientAppointmentsHandler,
   '/api/patient-billing': patientBillingHandler, '/api/billing': patientBillingHandler,
-  '/api/patient-claims': patientClaimsHandler
+  '/api/patient-claims': patientClaimsHandler,
+  '/api/patient-health-records': healthRecordsHandler
 };
 
 function createServer() {

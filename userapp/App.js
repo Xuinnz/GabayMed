@@ -13,6 +13,7 @@ import { AppointmentBooking } from './components/appointment';
 import { MyAppointmentsModal } from './components/my-appointments';
 import { BillingPaymentsModal } from './components/billing-payments';
 import { DigitalClaimsModal } from './components/digital-claims';
+import { HealthRecordVaultModal } from './components/health-record-vault';
 import { LoginPage } from './pages/auth/login';
 import { RegisterPage } from './pages/auth/register';
 import { ForgotPasswordPage } from './pages/auth/forgot-password';
@@ -35,6 +36,8 @@ export default function App() {
   const [showMyAppointments, setShowMyAppointments] = useState(false);
   const [showBilling, setShowBilling] = useState(false);
   const [showClaims, setShowClaims] = useState(false);
+  const [showRecordVault, setShowRecordVault] = useState(false);
+  const [vaultRefreshKey, setVaultRefreshKey] = useState(0);
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0);
 
   const triggerAppointmentRefresh = () => {
@@ -59,6 +62,7 @@ export default function App() {
         setShowMyAppointments(false);
         setShowBilling(false);
         setShowClaims(false);
+        setShowRecordVault(false);
         setActiveTab('home');
       }
     });
@@ -159,6 +163,8 @@ export default function App() {
               }}
               onOpenMyAppointments={() => setShowMyAppointments(true)}
               onNavigateToCases={() => setActiveTab('cases')}
+              onOpenRecordVault={() => setShowRecordVault(true)}
+              vaultRefreshTrigger={vaultRefreshKey}
               refreshTrigger={appointmentRefreshKey}
             />
           </View>
@@ -187,6 +193,7 @@ export default function App() {
               onOpenProfile={handleOpenProfilePage}
               onOpenBilling={() => setShowBilling(true)}
               onOpenClaims={() => setShowClaims(true)}
+              onOpenRecordVault={() => setShowRecordVault(true)}
               onSignOut={() => setAuthScreen('login')}
             />
           </View>
@@ -220,6 +227,11 @@ export default function App() {
       />
       <BillingPaymentsModal visible={showBilling} onClose={() => setShowBilling(false)} />
       <DigitalClaimsModal visible={showClaims} onClose={() => setShowClaims(false)} />
+      <HealthRecordVaultModal
+        visible={showRecordVault}
+        onChanged={() => setVaultRefreshKey(k => k + 1)}
+        onClose={() => setShowRecordVault(false)}
+      />
       <StatusBar style="dark" />
     </View>
   );
