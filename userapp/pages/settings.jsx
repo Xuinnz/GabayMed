@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import {
   User, History, HelpCircle, LogOut, ChevronRight, ArrowLeft, Mail,
   Heart, Plus, Trash2, Camera, ShieldCheck, Droplets, AlertTriangle, Stethoscope, ImagePlus,
-  Building2, MapPin, Bell, FileText, Lock, Globe, Sun, Moon, Type, Eye, Calendar, CreditCard, MessageCircle, Gift,
+  Building2, MapPin, Bell, FileText, Lock, Globe, Sun, Moon, Type, Eye, Calendar, CreditCard, MessageCircle, Gift, Receipt,
 } from 'lucide-react-native';
 import { AppHeader } from '../components/app-header';
 import { PatientAvatar, AVATAR_PRESETS, resolveAvatarPreset } from '../components/patient-avatar';
@@ -1076,6 +1076,8 @@ export function SettingsPage({
   onOpenMessages,
   onOpenNotifications,
   onOpenProfile,
+  onOpenBilling,
+  onOpenClaims,
   onSignOut,
 }) {
   const cachedPerms = ProfileAPI.getCachedPermissions();
@@ -1412,6 +1414,22 @@ export function SettingsPage({
   const fs = size => Math.round(size * display.fontScale * 10) / 10;
 
   const menuItems = [
+    ...(onOpenBilling
+      ? [{
+          id: 'billing',
+          icon: Receipt,
+          label: t.billing || 'Billing & Payments',
+          action: onOpenBilling,
+        }]
+      : []),
+    ...(onOpenClaims
+      ? [{
+          id: 'claims',
+          icon: ShieldCheck,
+          label: t.digitalClaims || 'Digital Claims',
+          action: onOpenClaims,
+        }]
+      : []),
     {
       id: 'terms',
       icon: FileText,

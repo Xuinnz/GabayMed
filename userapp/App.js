@@ -11,6 +11,8 @@ import { NotificationsPage } from './pages/notifications';
 import { BottomNav } from './components/bottom-nav';
 import { AppointmentBooking } from './components/appointment';
 import { MyAppointmentsModal } from './components/my-appointments';
+import { BillingPaymentsModal } from './components/billing-payments';
+import { DigitalClaimsModal } from './components/digital-claims';
 import { LoginPage } from './pages/auth/login';
 import { RegisterPage } from './pages/auth/register';
 import { ForgotPasswordPage } from './pages/auth/forgot-password';
@@ -31,6 +33,8 @@ export default function App() {
   const [showAppointment, setShowAppointment] = useState(false);
   const [preselectedService, setPreselectedService] = useState(null);
   const [showMyAppointments, setShowMyAppointments] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
+  const [showClaims, setShowClaims] = useState(false);
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0);
 
   const triggerAppointmentRefresh = () => {
@@ -53,6 +57,8 @@ export default function App() {
         setShowNotifications(false);
         setShowAppointment(false);
         setShowMyAppointments(false);
+        setShowBilling(false);
+        setShowClaims(false);
         setActiveTab('home');
       }
     });
@@ -179,6 +185,8 @@ export default function App() {
               onOpenMessages={() => setShowMessages(true)}
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenProfile={handleOpenProfilePage}
+              onOpenBilling={() => setShowBilling(true)}
+              onOpenClaims={() => setShowClaims(true)}
               onSignOut={() => setAuthScreen('login')}
             />
           </View>
@@ -210,6 +218,8 @@ export default function App() {
         }}
         onScheduleNew={() => setShowAppointment(true)}
       />
+      <BillingPaymentsModal visible={showBilling} onClose={() => setShowBilling(false)} />
+      <DigitalClaimsModal visible={showClaims} onClose={() => setShowClaims(false)} />
       <StatusBar style="dark" />
     </View>
   );

@@ -56,6 +56,11 @@ export function PatientLedger({ patientId }) {
     amount: '',
     billToInsurance: false
   })
+  const [feeLookupInfo, setFeeLookupInfo] = useState({
+    loading: false,
+    source: '',
+    scheduleName: ''
+  })
 
   // Helper to calculate total payments already applied to a specific charge
   const getPaymentsForCharge = (charge, allTransactions) => {
@@ -178,18 +183,35 @@ const fetchTransactions = async () => {
     loadProviders();
   }, [patientId])
 
-  // Auto-populate procedure amount based on provider's fee schedule
+  // Auto-populate procedure amount based on provider's fee schedule (fee_schedule_items.current_fee)
   useEffect(() => {
+    let cancelled = false;
+
     const fetchProcedureFee = async () => {
-      if (procedureForm.provider && procedureForm.code) {
-        const fee = await ledgerAPI.getProcedureFee(procedureForm.provider, procedureForm.code);
-        if (fee) {
-          setProcedureForm(prev => ({ ...prev, amount: fee.toString() }));
-        }
+      if (!procedureForm.provider || !procedureForm.code) {
+        setFeeLookupInfo({ loading: false, source: '', scheduleName: '' });
+        return;
+      }
+
+      setFeeLookupInfo({ loading: true, source: '', scheduleName: '' });
+      const result = await ledgerAPI.getProcedureFee(procedureForm.provider, procedureForm.code);
+      if (cancelled) return;
+
+      if (result && result.amount !== null && result.amount !== undefined) {
+        setProcedureForm(prev => ({ ...prev, amount: String(result.amount) }));
+        setFeeLookupInfo({
+          loading: false,
+          source: result.source || 'provider_schedule',
+          scheduleName: result.scheduleName || ''
+        });
+      } else {
+        setProcedureForm(prev => ({ ...prev, amount: '' }));
+        setFeeLookupInfo({ loading: false, source: 'none', scheduleName: '' });
       }
     };
-    
+
     fetchProcedureFee();
+    return () => { cancelled = true; };
   }, [procedureForm.provider, procedureForm.code]);
 
   // Handle payment submission
@@ -589,6 +611,7 @@ const fetchTransactions = async () => {
                 amount: '',
                 billToInsurance: false
               });
+              setFeeLookupInfo({ loading: false, source: '', scheduleName: '' });
             }
           }}>
             <DialogTrigger asChild>
@@ -613,15 +636,15 @@ const fetchTransactions = async () => {
                 <div className="space-y-2">
                   <Label>Provider <span className="text-red-500">*</span></Label>
                   <Select
-                    value={procedureForm.provider}
-                    onValueChange={(value) => setProcedureForm({ ...procedureForm, provider: value })}
+                    value={procedureForm.provider ? String(procedureForm.provider) : ''}
+                    onValueChange={(value) => setProcedureForm(prev => ({ ...prev, provider: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Provider" />
                     </SelectTrigger>
                     <SelectContent>
                       {providers.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
+                        <SelectItem key={p.id} value={String(p.id)}>
                           {p.name}
                         </SelectItem>
                       ))}
@@ -685,13 +708,31 @@ const fetchTransactions = async () => {
                     <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                     <Input 
                       className="pl-7" 
-                      placeholder="0.00"
+                      placeholder={feeLookupInfo.loading ? "Loading fee..." : "0.00"}
                       type="number"
                       step="0.01"
                       value={procedureForm.amount}
-                      onChange={(e) => setProcedureForm({ ...procedureForm, amount: e.target.value })}
+                      onChange={(e) => setProcedureForm(prev => ({ ...prev, amount: e.target.value }))}
                     />
                   </div>
+                  {feeLookupInfo.loading && (
+                    <p className="text-xs text-muted-foreground">Looking up fee schedule rate...</p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'provider_schedule' && (
+                    <p className="text-xs text-blue-600">
+                      Auto-filled from provider&apos;s fee schedule{feeLookupInfo.scheduleName ? ` (${feeLookupInfo.scheduleName})` : ''}.
+                    </p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'standard_schedule' && (
+                    <p className="text-xs text-muted-foreground">
+                      Auto-filled from clinic fee schedule{feeLookupInfo.scheduleName ? ` (${feeLookupInfo.scheduleName})` : ''}.
+                    </p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'none' && procedureForm.provider && procedureForm.code && (
+                    <p className="text-xs text-amber-600">
+                      No rate found in the provider&apos;s fee schedule for this procedure. You can enter the amount manually.
+                    </p>
+                  )}
                 </div>
                 <Button 
                   onClick={handleProcedureSubmit}

@@ -306,34 +306,103 @@ export const ledgerAPI = {
       return { success: false, error: error.message };
     }
   },
-// Get specific procedure fee based on provider's fee schedule
+  // Get specific procedure fee based on provider's fee schedule (fee_schedule_items.current_fee)
   async getProcedureFee(providerId, procedureCode) {
+    if (!providerId || !procedureCode) {
+      return { amount: null, scheduleName: null, source: 'none' };
+    }
+
     try {
-      // 1. Get the provider's assigned fee schedule
+      const normalizedProcId = !isNaN(Number(procedureCode))
+        ? Number(procedureCode)
+        : procedureCode;
+
+      // Helper to fetch current_fee from fee_schedule_items for a given schedule_id
+      const fetchFeeForSchedule = async (scheduleId) => {
+        if (scheduleId == null) return null;
+        const { data: items, error: feeError } = await supabase
+          .from('fee_schedule_items')
+          .select('*')
+          .eq('schedule_id', scheduleId)
+          .eq('procedure_id', normalizedProcId)
+          .limit(1);
+
+        if (feeError) throw feeError;
+        const item = Array.isArray(items) ? items[0] : null;
+        if (!item) return null;
+
+        const rawFee = item.current_fee ?? item.custom_price ?? null;
+        return rawFee != null && rawFee !== '' && Number.isFinite(Number(rawFee))
+          ? Number(rawFee)
+          : null;
+      };
+
+      // 1. Get the provider's assigned fee schedule and facility
       const { data: provider, error: providerError } = await supabase
         .from('providers')
-        .select('schedule_id')
+        .select('*')
         .eq('provider_id', providerId)
-        .single();
+        .maybeSingle();
 
       if (providerError) throw providerError;
-      if (!provider?.schedule_id) return ''; 
 
-      // 2. Get the fee from fee_schedule_items using the schedule_id and procedure code
-      const { data: feeItem, error: feeError } = await supabase
-        .from('fee_schedule_items')
-        .select('current_fee')
-        .eq('schedule_id', provider.schedule_id)
-        .eq('procedure_id', procedureCode)
-        .single();
+      const providerScheduleId = provider?.schedule_id ?? provider?.fee_schedule_id ?? null;
 
-      // PGRST116 is the PostgREST error code for "no rows returned"
-      if (feeError && feeError.code !== 'PGRST116') throw feeError;
+      // 2. Check the provider's assigned fee schedule first
+      if (providerScheduleId != null) {
+        const fee = await fetchFeeForSchedule(providerScheduleId);
+        if (fee !== null) {
+          let scheduleName = null;
+          try {
+            const { data: sched } = await supabase
+              .from('fee_schedules')
+              .select('schedule_name')
+              .eq('schedule_id', providerScheduleId)
+              .maybeSingle();
+            scheduleName = sched?.schedule_name || null;
+          } catch {}
+          return { amount: fee, scheduleName, source: 'provider_schedule' };
+        }
+      }
 
-      return feeItem?.current_fee || '';
+      // 3. Fallback: check the facility's active Standard fee schedule
+      const facilityId = provider?.facility_id || Session.getFacilityId();
+      if (facilityId) {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+        const { data: schedules, error: schedErr } = await supabase
+          .from('fee_schedules')
+          .select('schedule_id, schedule_name, insurance_id, effective_from, effective_to')
+          .eq('facility_id', facilityId)
+          .order('effective_from', { ascending: false });
+
+        if (!schedErr && Array.isArray(schedules) && schedules.length > 0) {
+          const activeStandard = schedules.find(
+            s => !s.insurance_id &&
+              (!s.effective_from || s.effective_from <= today) &&
+              (!s.effective_to || today < s.effective_to)
+          );
+          const candidateSchedules = [
+            ...(activeStandard ? [activeStandard] : []),
+            ...schedules.filter(s => s.schedule_id !== activeStandard?.schedule_id && s.schedule_id !== providerScheduleId)
+          ];
+
+          for (const sched of candidateSchedules) {
+            const fee = await fetchFeeForSchedule(sched.schedule_id);
+            if (fee !== null) {
+              return {
+                amount: fee,
+                scheduleName: sched.schedule_name || null,
+                source: 'standard_schedule'
+              };
+            }
+          }
+        }
+      }
+
+      return { amount: null, scheduleName: null, source: 'none' };
     } catch (error) {
       console.error("Get Procedure Fee Error:", error.message);
-      return '';
+      return { amount: null, scheduleName: null, source: 'none' };
     }
   },
   // Add Charge (Procedure)
