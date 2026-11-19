@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { GabayAPI } from '../services/gabayApi'
+import LoginPage from './pages/login'
 import DashboardPage from './pages/dashboard'
 import PatientsPage from './pages/patients'
 import AppointmentsPage from './pages/appointments'
@@ -9,48 +11,103 @@ import { Messages } from './pages/messages'
 import { Notifications } from './pages/notifications'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard')
+  const [currentPage, setCurrentPage] = useState(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+    const hasAuth = typeof window !== 'undefined' ? !!localStorage.getItem('gabay_auth') : false
+    
+    if (path === '/login') return 'login'
+    if (path === '/patients') return 'patients'
+    if (path === '/appointments') return 'appointments'
+    if (path === '/carriers') return 'carriers'
+    if (path === '/settings') return 'settings'
+    if (path === '/profile') return 'profile'
+    if (path === '/messages') return 'messages'
+    if (path === '/notifications') return 'notifications'
+    
+    // If not authenticated and visiting root, show login first
+    if (!hasAuth && path === '/') return 'login'
+    return 'dashboard'
+  })
+
+  const [access, setAccess] = useState({ loading: true, account: null, error: '' })
+  useEffect(() => {
+    if (currentPage === 'login') return
+    let active = true
+    setAccess({ loading: true, account: null, error: '' })
+    GabayAPI.getClinicAccount().then(account => {
+      if (active) setAccess({ loading: false, account, error: '' })
+    }).catch(error => {
+      if (active) setAccess({ loading: false, account: null, error: error.message })
+    })
+    return () => { active = false }
+  }, [currentPage])
 
   // Simple client-side routing
   useEffect(() => {
-    const path = window.location.pathname
-    if (path === '/patients') setCurrentPage('patients')
-    else if (path === '/appointments') setCurrentPage('appointments')
-    else if (path === '/carriers') setCurrentPage('carriers')
-    else if (path === '/settings') setCurrentPage('settings')
-    else if (path === '/profile') setCurrentPage('profile')
-    else if (path === '/messages') setCurrentPage('messages')
-    else if (path === '/notifications') setCurrentPage('notifications')
-    else setCurrentPage('dashboard')
-  }, [])
-
-  // Handle navigation
-  useEffect(() => {
-    const handlePopState = () => {
+    const resolvePage = () => {
       const path = window.location.pathname
-      if (path === '/patients') setCurrentPage('patients')
+      const hasAuth = !!localStorage.getItem('gabay_auth')
+
+      if (path === '/login') setCurrentPage('login')
+      else if (path === '/patients') setCurrentPage('patients')
       else if (path === '/appointments') setCurrentPage('appointments')
       else if (path === '/carriers') setCurrentPage('carriers')
       else if (path === '/settings') setCurrentPage('settings')
       else if (path === '/profile') setCurrentPage('profile')
       else if (path === '/messages') setCurrentPage('messages')
       else if (path === '/notifications') setCurrentPage('notifications')
-      else setCurrentPage('dashboard')
+      else {
+        if (!hasAuth && path === '/') {
+          setCurrentPage('login')
+        } else {
+          setCurrentPage('dashboard')
+        }
+      }
+    }
+
+    resolvePage()
+  }, [])
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname
+      const hasAuth = !!localStorage.getItem('gabay_auth')
+
+      if (path === '/login') setCurrentPage('login')
+      else if (path === '/patients') setCurrentPage('patients')
+      else if (path === '/appointments') setCurrentPage('appointments')
+      else if (path === '/carriers') setCurrentPage('carriers')
+      else if (path === '/settings') setCurrentPage('settings')
+      else if (path === '/profile') setCurrentPage('profile')
+      else if (path === '/messages') setCurrentPage('messages')
+      else if (path === '/notifications') setCurrentPage('notifications')
+      else {
+        if (!hasAuth && path === '/') {
+          setCurrentPage('login')
+        } else {
+          setCurrentPage('dashboard')
+        }
+      }
     }
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  // Handle client-side anchor clicks
   useEffect(() => {
     const handleClick = (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
       const anchor = e.target.closest('a')
-      if (anchor && anchor.href && anchor.href.startsWith(window.location.origin)) {
+      if (anchor && anchor.href && anchor.href.startsWith(window.location.origin) && !anchor.target && !anchor.hasAttribute('download')) {
         e.preventDefault()
-        const path = new URL(anchor.href).pathname
-        window.history.pushState({}, '', path)
+        const url = new URL(anchor.href)
+        const path = url.pathname
+        window.history.pushState({}, '', url.pathname + url.search + url.hash)
         
-        if (path === '/patients') setCurrentPage('patients')
+        if (path === '/login') setCurrentPage('login')
+        else if (path === '/patients') setCurrentPage('patients')
         else if (path === '/appointments') setCurrentPage('appointments')
         else if (path === '/carriers') setCurrentPage('carriers')
         else if (path === '/settings') setCurrentPage('settings')
@@ -58,6 +115,8 @@ function App() {
         else if (path === '/messages') setCurrentPage('messages')
         else if (path === '/notifications') setCurrentPage('notifications')
         else setCurrentPage('dashboard')
+
+        window.dispatchEvent(new PopStateEvent('popstate'))
       }
     }
 
@@ -65,8 +124,19 @@ function App() {
     return () => document.removeEventListener('click', handleClick)
   }, [])
 
+  const handleLoginSuccess = () => {
+    window.history.pushState({}, '', '/')
+    window.location.assign('/')
+  }
+
+  if (currentPage !== 'login') {
+    if (access.loading) return <div className="p-8 text-center">Checking your account...</div>
+    if (!access.account) return <LoginPage onLoginSuccess={handleLoginSuccess} initialError={access.error} />
+  }
+
   return (
     <div className="min-h-screen bg-background">
+      {currentPage === 'login' && <LoginPage onLoginSuccess={handleLoginSuccess} />}
       {currentPage === 'dashboard' && <DashboardPage />}
       {currentPage === 'patients' && <PatientsPage />}
       {currentPage === 'appointments' && <AppointmentsPage />}
@@ -80,3 +150,4 @@ function App() {
 }
 
 export default App
+

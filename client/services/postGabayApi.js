@@ -34,14 +34,21 @@ export const POSTGabayAPI = {
 
     const {
       // Profile Fields
-      full_name,
+      //full_name,
+      first_name,
+      middle_name,
+      last_name,
       phone_number,
-      address,
+      street_address,
+      barangay,
+      city_municipality,
+      province,
+      zip_code,
       email,
       // Patient Fields
       date_of_birth,
       gender,
-      insurance_plan_id
+      insurance_id
     } = patientData;
 
     try {
@@ -49,39 +56,72 @@ export const POSTGabayAPI = {
         throw new Error("Facility ID is required to create a patient.");
       }
 
+      const address = [
+        street_address,
+        barangay,
+        city_municipality,
+        province,
+        zip_code
+      ]
+        .filter(value => value && value.trim())
+        .join(", ");
+
+
       // 1. Insert into Profiles
-      // This will fire your DB trigger to create the empty patient row
+      // no trigger
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .insert([{
-          full_name,
+          first_name: first_name?.trim(),
+          middle_name: middle_name || null,
+          last_name: last_name?.trim(),
           phone_number,
-          address,
-          email
+          street_address: street_address?.trim() || null,
+          barangay: barangay?.trim() || null,
+          city_municipality: city_municipality?.trim() || null,
+          province: province?.trim() || null,
+          zip_code: zip_code?.trim() || null,
+          email,
+          address
         }])
-        .select('id') // Get the ID to find the linked patient
+        .select('id, first_name, middle_name, last_name, phone_number, address,  street_address, barangay, city_municipality, province, zip_code')
         .single();
 
       if (profileError) throw profileError;
 
       if (!profile) throw new Error("Profile creation failed");
 
-      // 2. Update the automatically created Patient row
-      // We use UPDATE, not INSERT, because the trigger already made the row
-      const { error: patientError } = await supabase
+      // 2. Insert into Patients
+      // We use INSERT, not UPDATE, because there's no trigger
+      const { data: newPatient, error: patientError } = await supabase
         .from('patients')
-        .update({
+        .insert({
+          //full_name: full_name || profile.full_name,
+          first_name: profile.first_name,
+          middle_name: profile.middle_name,
+          last_name: profile.last_name,
+          phone_number: profile.phone_number,
+          address: profile.address,
+          profile_id: profile.id,
           date_of_birth,
           gender,
-          insurance_plan_id,
+          age: date_of_birth ? Math.abs(new Date(Date.now() - new Date(date_of_birth).getTime()).getUTCFullYear() - 1970) : null,
+          insurance_id,
+          created_at: new Date().toISOString(),
           facility_id: facilityId // Add facility_id here
         })
-        .eq('user_id', profile.id); 
+        .select('patient_id, profile_id')
+        .single();;
 
       if (patientError) throw patientError;
-
-      return { success: true, id: profile.id };
-
+      if (!newPatient) {
+        throw new Error("Patient creation failed.");
+      }
+      return {
+        success: true,
+        id: newPatient.patient_id,
+        profileId: newPatient.profile_id
+      };
     } catch (error) {
       console.error("Create Patient Error:", error.message);
       return { success: false, error: error.message };

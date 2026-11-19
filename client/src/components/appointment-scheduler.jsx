@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight, CalendarIcon, Clock, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,15 +30,22 @@ export function AppointmentScheduler() {
 
   const [formData, setFormData] = useState({
     patient: '',
-    patientId: null, // Added to store ID
-    status: 'unconfirmed',
+    patientId: null,
+    status: 'PENDING',
     procedure: '',
-    operatory: '',
+    operatory: 'Room 101',
     primaryProvider: '',
     additionalProvider: '',
     length: '30',
     notes: ''
   })
+
+  //Procedure-search state
+  const [procedureSearch, setProcedureSearch] = useState("");
+  const [procedureResults, setProcedureResults] = useState([]);
+  const [selectedProcedure, setSelectedProcedure] = useState(null);
+  const [showProcedureResults, setShowProcedureResults] = useState(false);
+  const [isSearchingProcedures, setIsSearchingProcedures] = useState(false);
 
   // Fetch Data on Mount and Date Change
   useEffect(() => {
@@ -51,8 +58,8 @@ export function AppointmentScheduler() {
         const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
         setBookedAppointments(appointmentsData);
 
-        const proceduresData = await appointmentAPI.getProcedures();
-        setProcedures(proceduresData);
+        // const proceduresData = await appointmentAPI.getProcedures();
+        // setProcedures(proceduresData);
 
       } catch (error) {
         console.error("Failed to load scheduler data", error);
@@ -64,61 +71,133 @@ export function AppointmentScheduler() {
     loadData();
   }, [selectedDate]);
 
+  useEffect(() => {
+    const term = procedureSearch.trim();
+    if (!term || selectedProcedure) {
+      setProcedureResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsSearchingProcedures(true);
+      try {
+        const results = await appointmentAPI.searchProcedures(term);
+        if (!cancelled) {
+          setProcedureResults(results);
+        }
+      } catch (error) {
+        console.error("Failed to search procedures:", error);
+      } finally {
+        if (!cancelled) {
+          setIsSearchingProcedures(false);
+        }
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [procedureSearch, selectedProcedure]);
+
   const getAppointmentForSlot = (providerId, time) => {
-    return bookedAppointments.find((apt) => apt.providerId === providerId && apt.time === time)
+    return bookedAppointments.find((apt) => 
+      String(apt.providerId) === String(providerId) && 
+      Number(apt.time) === Number(time)
+    )
   }
 
-  // NEW FUNCTION: Handle slot clicks to initialize form data
+  const getAppointmentStatusColor = (status) => {
+    const colors = {
+      pending: "bg-yellow-50 hover:bg-yellow-100 border-yellow-200",
+      confirmed: "bg-green-50 hover:bg-green-100 border-green-200",
+      ongoing: "bg-blue-50 hover:bg-blue-100 border-blue-200",
+      complete: "bg-gray-100 hover:bg-gray-200 border-gray-300",
+      missed: "bg-orange-50 hover:bg-orange-100 border-orange-200",
+      cancelled: "bg-red-50 hover:bg-red-100 border-red-200",
+    };
+
+    return (
+      colors[String(status ?? "").trim().toLowerCase()] ||
+      "bg-white hover:bg-slate-50 border-gray-200"
+    );
+  };
+
+  const getAppointmentStatusChipColor = (status) => {
+    const colors = {
+      pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
+      confirmed: "bg-green-100 text-green-800 border-green-300",
+      ongoing: "bg-blue-100 text-blue-800 border-blue-300",
+      complete: "bg-gray-200 text-gray-800 border-gray-300",
+      missed: "bg-orange-100 text-orange-800 border-orange-300",
+      cancelled: "bg-red-100 text-red-800 border-red-300",
+    };
+
+    return (
+      colors[String(status ?? "").trim().toLowerCase()] ||
+      "bg-gray-100 text-gray-800 border-gray-300"
+    );
+  };
+
+  // Handle slot clicks to initialize form data
   const handleSlotClick = (providerId, time, appointment) => {
     setSelectedSlot({ providerId, time, date: selectedDate, appointment })
     
     if (!appointment) {
-      // Initialize form data so "Save" button works immediately
+      // Initialize form data so "Save" button works smoothly
       setFormData({
         patient: '',
         patientId: null,
         status: 'PENDING', 
-        procedure: '',
-        operatory: '',
-        primaryProvider: providerId.toString(), 
+        procedure: procedures[0]?.id ? procedures[0].id.toString() : '',
+        operatory: 'Room 101',
+        primaryProvider: providerId ? providerId.toString() : '', 
         additionalProvider: '',
         length: '30',
         notes: ''
       })
     } else {
-      // POPULATE FORM FOR EDITING
+      // POPULATE FORM FOR EDITING (with safe fallbacks to avoid crashes)
+      const procVal = appointment.procedureId 
+        ? appointment.procedureId.toString() 
+        : (appointment.procedure ? appointment.procedure.toString() : '');
+
       setFormData({
-        patient: appointment.patient,
-        patientId: appointment.patientId,
-        status: appointment.status,
-        procedure: appointment.procedureId ? appointment.procedureId.toString() : '',
+        patient: appointment.patient || '',
+        patientId: appointment.patientId || null,
+        status: appointment.status || 'PENDING',
+        procedure: procVal,
         operatory: appointment.operatory || 'Room 101',
-        primaryProvider: appointment.providerId.toString(),
+        primaryProvider: appointment.providerId ? appointment.providerId.toString() : (providerId ? providerId.toString() : ''),
         additionalProvider: '',
-        length: appointment.length.toString(),
+        length: appointment.length ? appointment.length.toString() : '30',
         notes: appointment.notes || ''
       })
     }
   }
 
   const handleNewAppointment = () => {
-    if (providers.length === 0) return;
+    const defaultProviderId = providers.length > 0 && providers[0].id ? providers[0].id.toString() : ''
     
-    setSelectedSlot({ providerId: providers[0].id, time: 8, date: selectedDate, appointment: null })
+    setSelectedSlot({ 
+      providerId: defaultProviderId || (providers[0]?.id ?? 1), 
+      time: 8, 
+      date: selectedDate, 
+      appointment: null 
+    })
     setFormData({
       patient: '',
       patientId: null,
-      status: 'PENDING', // Changed from 'unconfirmed' to match Select options
-      procedure: '',
-      operatory: '',
-      primaryProvider: providers[0].id.toString(),
+      status: 'PENDING',
+      procedure: procedures[0]?.id ? procedures[0].id.toString() : '',
+      operatory: 'Room 101',
+      primaryProvider: defaultProviderId,
       additionalProvider: '',
       length: '30',
       notes: ''
     })
   }
 
-  // --- New Search Logic ---
+  // --- Search Logic ---
   const handlePatientSearch = async (value) => {
     setFormData({ ...formData, patient: value, patientId: null }); // Reset ID on type
     if (value.length > 1) {
@@ -133,7 +212,7 @@ export function AppointmentScheduler() {
       setFormData({ ...formData, patient: patient.name, patientId: patient.id });
       setPatientSearchResults([]);
   }
-  // ------------------------
+  // --------------------
 
   // --- Save Logic ---
   const handleSave = async () => {
@@ -142,16 +221,14 @@ export function AppointmentScheduler() {
         return;
     }
 
-    // Construct Date Time
     const date = new Date(selectedSlot.date);
     date.setHours(selectedSlot.time, 0, 0, 0);
-    // Adjust for timezone offset if necessary, or use local ISO
-    // For simplicity, using ISO string (UTC)
     
     const newAppointment = {
         patientId: formData.patientId,
         providerId: formData.primaryProvider,
         procedureId: formData.procedure,
+        operatory: formData.operatory || 'Room 101',
         date: date.toISOString(),
         duration: formData.length,
         status: formData.status,
@@ -178,6 +255,7 @@ export function AppointmentScheduler() {
     const updates = {
         providerId: formData.primaryProvider,
         procedureId: formData.procedure,
+        operatory: formData.operatory,
         duration: formData.length,
         status: formData.status,
         notes: formData.notes
@@ -192,6 +270,23 @@ export function AppointmentScheduler() {
         setSelectedSlot(null); // Close panel
     } else {
         alert("Failed to update appointment: " + result.error);
+    }
+  }
+
+  const handleCancelAppointment = async () => {
+    if (!selectedSlot?.appointment?.id) return;
+    if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
+
+    const result = await appointmentAPI.updateAppointment(selectedSlot.appointment.id, {
+      status: 'CANCELLED'
+    });
+
+    if (result.success) {
+      const appointmentsData = await appointmentAPI.getAppointmentsByDate(selectedDate);
+      setBookedAppointments(appointmentsData);
+      setSelectedSlot(null); // Close panel
+    } else {
+      alert("Failed to cancel appointment: " + result.error);
     }
   }
   // ------------------
@@ -222,7 +317,7 @@ export function AppointmentScheduler() {
 
   return (
     <div className="flex h-[calc(100vh-120px)] gap-6">
-      <div className="flex-1 flex flex-col gap-4">
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold">
@@ -255,7 +350,7 @@ export function AppointmentScheduler() {
           <Button onClick={handleNewAppointment}>New Appointment</Button>
         </div>
 
-        <div className="flex-1 border rounded-2xl overflow-auto bg-white">
+        <div className="flex-1 border rounded-2xl overflow-auto bg-white shadow-sm">
           <div className="grid min-w-[800px]" style={{ gridTemplateColumns: `80px repeat(${providers.length}, 1fr)` }}>
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white border-b p-4"></div>
@@ -277,7 +372,7 @@ export function AppointmentScheduler() {
 
             {/* Time Slots */}
             {hours.map((hour) => (
-              <>
+              <React.Fragment key={`hour-row-${hour}`}>
                 <div
                   key={`time-${hour}`}
                   className="border-b p-4 text-sm text-muted-foreground text-right sticky left-0 bg-white"
@@ -290,8 +385,9 @@ export function AppointmentScheduler() {
                     <div
                       key={`slot-${provider.id}-${hour}`}
                       className={`border-b border-l min-h-[100px] p-2 relative group cursor-pointer transition-colors ${
-                        appointment ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-slate-50"
-                      }`}
+                        appointment 
+                        ? getAppointmentStatusColor(appointment.status)
+                        : "hover:bg-slate-50"}`}
                       // UPDATED: Use the new handler instead of inline function
                       onClick={() => handleSlotClick(provider.id, hour, appointment)}
                     >
@@ -299,7 +395,12 @@ export function AppointmentScheduler() {
                         <div className="space-y-1">
                           <div className="font-medium text-sm">{appointment.patient}</div>
                           <div className="text-xs text-muted-foreground">{appointment.procedure}</div>
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge 
+                            variant="outline"
+                            className={`text-xs font-medium ${getAppointmentStatusChipColor(
+                              appointment.status
+                            )}`}
+                          >
                             {appointment.status}
                           </Badge>
                         </div>
@@ -317,7 +418,7 @@ export function AppointmentScheduler() {
                     </div>
                   )
                 })}
-              </>
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -325,7 +426,7 @@ export function AppointmentScheduler() {
 
       {/* Right Panel - Appointment Details */}
       {selectedSlot && (
-        <Card className="w-[400px] overflow-auto border-l shadow-none rounded-2xl border-y-0 border-r-0">
+        <Card className="w-[400px] shrink-0 overflow-auto border shadow-md rounded-2xl bg-white">
           <CardContent className="p-6 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-lg">
@@ -361,7 +462,7 @@ export function AppointmentScheduler() {
                   <Input
                     className="pl-9"
                     placeholder="Search patient..."
-                    value={selectedSlot.appointment?.patient || formData.patient}
+                    value={formData.patient}
                     onChange={(e) => handlePatientSearch(e.target.value)}
                     disabled={!!selectedSlot.appointment} // Keep Patient locked for edits to avoid confusion
                   />
@@ -385,9 +486,8 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Status <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={formData.status} // Use formData directly
+                  value={formData.status}
                   onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
@@ -402,35 +502,73 @@ export function AppointmentScheduler() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
-                <Label>Procedures <span className="text-red-500">*</span></Label>
-                <Select 
-                  value={formData.procedure} // Use formData directly
-                  onValueChange={(value) => setFormData({ ...formData, procedure: value })}
-                  // Removed disabled prop
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select procedure" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {procedures.length > 0 ? (
-                      procedures.map((proc) => (
-                        <SelectItem key={proc.id} value={proc.id.toString()}>{proc.name}</SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="0" disabled>No procedures found</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="procedure-search"> Procedures <span className="text-red-500">*</span></Label>
+                <div className="relative">
+                  <Input
+                    id="procedure-search"
+                    placeholder="Search procedure"
+                    value={procedureSearch}
+                    onChange={(e) => {
+                      setProcedureSearch(e.target.value);
+                      setShowProcedureResults(true);
+                      // Clear the previous selection when the search changes.
+                      setFormData((prev) => ({...prev,procedure: "",}));
+                      setSelectedProcedure(null);
+                    }}
+                    onFocus={() => setShowProcedureResults(true)}
+                    autoComplete="off"
+                  />
+
+                  {showProcedureResults && procedureSearch.trim() && (
+                    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-white shadow-md">
+                      {isSearchingProcedures ? (
+                        <div className="p-3 text-sm text-gray-500">Searching procedures...</div>
+                      ) : procedureResults.length > 0 ? (
+                        procedureResults.map((proc) => (
+                          <button
+                            key={proc.code}
+                            type="button"
+                            className="flex w-full flex-col items-start border-b p-3 text-left hover:bg-gray-100 last:border-b-0"
+                            onClick={() => {
+                              setFormData((prev) => ({...prev, procedure: proc.code.toString(),}));
+                              setSelectedProcedure(proc);
+                              setProcedureSearch( `${proc.code || ""} — ${proc.name}`);
+                              setShowProcedureResults(false);
+                            }}
+                          >
+                            <span className="font-medium"> {proc.code && `${proc.code} — `}{proc.name} </span>
+                            {proc.description && (<span className="mt-1 text-sm text-gray-500">{proc.description}</span>)}
+                            {proc.category && (<span className="mt-1 text-xs text-gray-400">{proc.category}</span>)}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-3 text-sm text-gray-500">No matching procedures found.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {selectedProcedure && (
+                  <div className="rounded-md border bg-gray-50 p-3 text-sm">
+                    <p>
+                      <span className="font-medium">Procedure Code:</span>{" "}
+                      {selectedProcedure.code || "N/A"}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Description:</span>{" "}
+                      {selectedProcedure.description || "No description available."}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Operatory <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={formData.operatory} // Use formData directly
+                  value={formData.operatory}
                   onValueChange={(value) => setFormData({ ...formData, operatory: value })}
-                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select room" />
@@ -447,9 +585,8 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Primary Provider <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={formData.primaryProvider} // Use formData directly
+                  value={formData.primaryProvider}
                   onValueChange={(value) => setFormData({ ...formData, primaryProvider: value })}
-                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
@@ -469,7 +606,6 @@ export function AppointmentScheduler() {
                 <Select 
                   value={formData.additionalProvider}
                   onValueChange={(value) => setFormData({ ...formData, additionalProvider: value })}
-                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select additional provider" />
@@ -487,9 +623,8 @@ export function AppointmentScheduler() {
               <div className="space-y-2">
                 <Label>Length (minutes) <span className="text-red-500">*</span></Label>
                 <Select 
-                  value={formData.length} // Use formData directly
+                  value={formData.length}
                   onValueChange={(value) => setFormData({ ...formData, length: value })}
-                  // Removed disabled prop
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select duration" />
@@ -512,7 +647,6 @@ export function AppointmentScheduler() {
                   rows={3}
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  // Removed disabled prop
                 />
               </div>
 
@@ -520,7 +654,7 @@ export function AppointmentScheduler() {
                 {selectedSlot.appointment ? (
                   <>
                     <Button className="w-full bg-blue-500" onClick={handleUpdate}>Update</Button>
-                    <Button variant="destructive" className="w-full">
+                    <Button variant="destructive" className="w-full" onClick={handleCancelAppointment}>
                       Cancel Appointment
                     </Button>
                   </>

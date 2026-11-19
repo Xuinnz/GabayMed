@@ -87,7 +87,25 @@ export const GabayAPI = {
     });
     
     if (error) throw error;
-    return data;
+    try {
+      const account = await this.getClinicAccount();
+      return { ...data, account };
+    } catch (accountError) {
+      await supabase.auth.signOut();
+      throw accountError;
+    }
+  },
+
+  async getClinicAccount() {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) throw new Error('Please sign in with a clinic account.');
+    const { data: account, error: accountError } = await supabase.from('users')
+      .select('id, email, role, facility_id').eq('id', user.id).single();
+    if (accountError || !account?.facility_id || !['IT Admin', 'Hospital Staff'].includes(account.role)) {
+      throw new Error('Your account needs an IT Admin or Hospital Staff role and a clinic assignment.');
+    }
+    Session.setFacilityId(account.facility_id);
+    return account;
   },
 
   /**
@@ -96,6 +114,9 @@ export const GabayAPI = {
   async logout() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    localStorage.removeItem('gabay_auth');
+    localStorage.removeItem('gabay_facility_id');
+    localStorage.removeItem('gabay_facility_data');
   },
 
   /**
@@ -258,8 +279,9 @@ export const GabayAPI = {
         appointment_id,
         appointment_date,
         status,
+        procedure_id,
         patients ( full_name ), 
-        procedures ( name ),
+        procedures ( procedure_id ),
         providers ( name, specialization )
       `)
       .eq('facility_id', facilityId) 
@@ -324,6 +346,10 @@ export const GabayAPI = {
         .select(`
           patient_id,
           full_name,
+          first_name,
+          middle_name,
+          last_name,
+          age,
           date_of_birth,
           gender,
           appointments (
@@ -338,8 +364,17 @@ export const GabayAPI = {
       // 2. Process data
       const patientsList = data.map(patient => {
         
-        // A. Calculate Age
-        let age = 'N/A';
+        // A. Construct Full Name
+        const fullName = [
+          patient.first_name,
+          patient.middle_name,
+          patient.last_name
+        ]
+          .filter(Boolean)
+          .join(" ") || patient.full_name || "Unknown";
+
+        // B. Calculate Age
+        let age = patient.age || 'N/A';
         if (patient.date_of_birth) {
             const dob = new Date(patient.date_of_birth);
             const diff_ms = Date.now() - dob.getTime();
@@ -363,7 +398,10 @@ export const GabayAPI = {
 
         return {
           user_id: patient.patient_id,
-          full_name: patient.full_name || 'Unknown',
+          full_name: fullName,
+          first_name: patient.first_name,
+          middle_name: patient.middle_name,
+          last_name: patient.last_name,
           age: age,
           gender: patient.gender || 'N/A',
           date_of_birth: patient.date_of_birth,
@@ -395,7 +433,7 @@ export const GabayAPI = {
           status,
           type,
           insurance_plans (
-            plan_id,
+            insurance_id,
             plan_name
           )
         `);
@@ -427,7 +465,7 @@ export const GabayAPI = {
       const { data, error } = await supabase
         .from('insurance_plans')
         .select(`
-          plan_id,
+          insurance_id,
           plan_name,
           carrier ( name )
         `);
@@ -435,7 +473,7 @@ export const GabayAPI = {
       if (error) throw error;
 
       return data.map(plan => ({
-        id: plan.plan_id,
+        id: plan.insurance_id,
         name: plan.plan_name,
         carrier: plan.carrier?.name
       }));
@@ -453,7 +491,7 @@ export const GabayAPI = {
         .from('patient_insurance')
         .insert([{
           patient_id: patientId,
-          plan_id: planData.planId,
+          insurance_id: planData.planId,
           subscriber_id: planData.subscriberId,
           coverage_type: planData.coverageType,
           coverage_start_date: planData.coverageStartDate,

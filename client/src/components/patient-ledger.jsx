@@ -22,24 +22,101 @@ export function PatientLedger({ patientId }) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [isProcedureDialogOpen, setIsProcedureDialogOpen] = useState(false)
   const [providers, setProviders] = useState([])
-  
+  const [procedureCodes, setProcedureCodes] = useState([])
+
   // Payment form state
   const [paymentForm, setPaymentForm] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
     method: '',
-    paidAtVisit: false
+    paidAtVisit: false,
+    provider: '',
+    appointmentId: '', 
+    procedureId: ''
   })
-  
+  const [distribution, setDistribution] = useState({
+    totalBalance: 0,
+    insurancePortion: 0,
+    patientPortion: 0
+  })
+
+  // Allocation state: maps charge id -> applied amount string
+  const [allocations, setAllocations] = useState({})
+  // Track which charge was selected in the "Apply to Unpaid Charge" dropdown
+  const [selectedChargeId, setSelectedChargeId] = useState('')
+
   // Procedure form state
   const [procedureForm, setProcedureForm] = useState({
     date: new Date().toISOString().split('T')[0],
+    appointmentId: '',
+    procedureId: '',
     provider: '',
     code: '',
     description: '',
     amount: '',
     billToInsurance: false
   })
+  const [feeLookupInfo, setFeeLookupInfo] = useState({
+    loading: false,
+    source: '',
+    scheduleName: ''
+  })
+
+  // Helper to calculate total payments already applied to a specific charge
+  const getPaymentsForCharge = (charge, allTransactions) => {
+    if (!charge) return 0;
+    return allTransactions
+      .filter(t => t.amount < 0 && (
+        // 1. Direct match by Charge ID tagged in payment description
+        (t.description && t.description.includes(`[Charge #${charge.id}]`)) ||
+        // 2. Or matching by appointmentId and procedureId
+        (charge.appointmentId && t.appointmentId && String(t.appointmentId) === String(charge.appointmentId) &&
+         (!charge.procedureId || !t.procedureId || String(t.procedureId) === String(charge.procedureId))) ||
+        // 3. Or matching by procedureId (if charge has no appointmentId)
+        (!charge.appointmentId && charge.procedureId && t.procedureId && String(t.procedureId) === String(charge.procedureId))
+      ))
+      .reduce((sum, p) => sum + Math.abs(p.amount), 0);
+  };
+
+  // Helper to calculate remaining balance for a charge
+  const getChargeRemainingBalance = (charge, allTransactions) => {
+    if (!charge) return 0;
+    const paid = getPaymentsForCharge(charge, allTransactions);
+    return Math.max(0, charge.amount - paid);
+  };
+
+  // Derived: only unpaid/outstanding charges that have remaining balance > 0
+  const unpaidCharges = transactions
+    .filter(t => t.amount > 0 && t.paymentStatus !== 'PAID')
+    .map(t => ({
+      ...t,
+      remainingBalance: getChargeRemainingBalance(t, transactions)
+    }))
+    .filter(t => t.remainingBalance > 0);
+
+  // Auto-allocate payment across unpaid charges (oldest first)
+  const calculateAutoAllocations = (paymentAmt) => {
+    if (!paymentAmt || paymentAmt <= 0) {
+      setAllocations({});
+      return;
+    }
+
+    let remainingPayment = paymentAmt;
+    const newAllocations = {};
+
+    // Sort charges oldest first
+    const sortedCharges = [...unpaidCharges].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    for (const charge of sortedCharges) {
+      if (remainingPayment <= 0) break;
+
+      const applyAmount = Math.min(charge.remainingBalance, remainingPayment);
+      newAllocations[charge.id] = applyAmount.toFixed(2);
+      remainingPayment -= applyAmount;
+    }
+
+    setAllocations(newAllocations);
+  };
 
   // Validation functions
   const isPaymentFormValid = () => {
@@ -57,8 +134,8 @@ export function PatientLedger({ patientId }) {
            parseFloat(procedureForm.amount) > 0
   }
 
-  // Helper: Map payment codes to friendly descriptions
-  const getPaymentDescription = (code) => {
+  // Helper: Map payment codes/descriptions to friendly display names
+  const getPaymentDescription = (t) => {
     const methods = {
       'cash': 'Cash',
       'check': 'Check',
@@ -66,53 +143,160 @@ export function PatientLedger({ patientId }) {
       'ins_check': 'Insurance Check',
       'ins_eft': 'Insurance EFT'
     };
-    return methods[code] || code; // Fallback to raw code if not found
+    if (t.description) return t.description;
+    return methods[t.code] || 'Payment';
   };
 
-  // Fetch transactions from API
-  const fetchTransactions = async () => {
+const fetchTransactions = async () => {
     if (patientId) {
       setLoading(true)
-      const data = await ledgerAPI.getPatientLedger(patientId);
       
-      if (data.transactions) {
-        setTransactions(data.transactions)
+      // Fetch ledger and distribution data concurrently
+      const [ledgerData, distData] = await Promise.all([
+        ledgerAPI.getPatientLedger(patientId),
+        ledgerAPI.getPaymentDistribution(patientId)
+      ]);
+      
+      if (ledgerData.transactions) {
+        setTransactions(ledgerData.transactions)
       }
-      if (data.financial) {
-        setFinancialData(data.financial)
+      if (ledgerData.financial) {
+        setFinancialData(ledgerData.financial)
       }
+      
+      setDistribution(distData)
       setLoading(false)
     }
   }
 
   useEffect(() => {
     fetchTransactions()
-    
-    // Load providers for the dropdown
     const loadProviders = async () => {
-      const provs = await appointmentAPI.getProviders();
-      setProviders(provs);
+      if (patientId) {
+        const provs = await ledgerAPI.getPatientProviders(patientId);
+        setProviders(provs);
+
+        const codes = await ledgerAPI.getPatientProcedures(patientId);
+        setProcedureCodes(codes);
+      }
     }
     loadProviders();
   }, [patientId])
+
+  // Auto-populate procedure amount based on provider's fee schedule (fee_schedule_items.current_fee)
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProcedureFee = async () => {
+      if (!procedureForm.provider || !procedureForm.code) {
+        setFeeLookupInfo({ loading: false, source: '', scheduleName: '' });
+        return;
+      }
+
+      setFeeLookupInfo({ loading: true, source: '', scheduleName: '' });
+      const result = await ledgerAPI.getProcedureFee(procedureForm.provider, procedureForm.code);
+      if (cancelled) return;
+
+      if (result && result.amount !== null && result.amount !== undefined) {
+        setProcedureForm(prev => ({ ...prev, amount: String(result.amount) }));
+        setFeeLookupInfo({
+          loading: false,
+          source: result.source || 'provider_schedule',
+          scheduleName: result.scheduleName || ''
+        });
+      } else {
+        setProcedureForm(prev => ({ ...prev, amount: '' }));
+        setFeeLookupInfo({ loading: false, source: 'none', scheduleName: '' });
+      }
+    };
+
+    fetchProcedureFee();
+    return () => { cancelled = true; };
+  }, [procedureForm.provider, procedureForm.code]);
 
   // Handle payment submission
   const handlePaymentSubmit = async () => {
     if (!isPaymentFormValid()) return
 
-    const result = await ledgerAPI.addPayment(patientId, paymentForm);
+    const paymentAmount = parseFloat(paymentForm.amount);
+    const allocKeys = Object.keys(allocations).filter(k => parseFloat(allocations[k]) > 0);
+
+    let allSuccessful = true;
+
+    if (allocKeys.length > 0) {
+      let totalAllocated = 0;
       
-    if (result.success) {
+      // Submit a separate payment record for each allocated charge
+      for (const chargeId of allocKeys) {
+        const allocAmount = parseFloat(allocations[chargeId]);
+        totalAllocated += allocAmount;
+        
+        const charge = unpaidCharges.find(t => String(t.id) === String(chargeId));
+        
+        const payload = {
+          ...paymentForm,
+          amount: allocAmount,
+          chargeId: chargeId,
+          appointmentId: charge?.appointmentId || null,
+          procedureId: charge?.procedureId || null,
+          provider_id: charge?.providerId || null
+        };
+        
+        const result = await ledgerAPI.addPayment(patientId, payload);
+        
+        if (result.success && charge) {
+          const alreadyPaid = getPaymentsForCharge(charge, transactions);
+          const currentBalance = charge.amount - alreadyPaid;
+          const remainingAfterPayment = currentBalance - allocAmount;
+
+          if (remainingAfterPayment <= 0.01) { 
+            await ledgerAPI.updateChargeStatus(chargeId, 'PAID');
+          }
+        } else {
+          allSuccessful = false;
+        }
+      }
+      
+      // If the user overpaid (entered more than total unpaid), log the remainder as generic payment
+      const leftover = paymentAmount - totalAllocated;
+      if (leftover > 0.01) {
+         const payload = {
+           ...paymentForm,
+           amount: leftover,
+           chargeId: null,
+           appointmentId: null,
+           procedureId: null,
+           provider_id: null
+         };
+         await ledgerAPI.addPayment(patientId, payload);
+      }
+      
+    } else {
+      // Generic unallocated payment
+      const payload = {
+        ...paymentForm,
+        chargeId: null
+      };
+      const result = await ledgerAPI.addPayment(patientId, payload);
+      if (!result.success) allSuccessful = false;
+    }
+      
+    if (allSuccessful) {
       setIsPaymentDialogOpen(false)
       setPaymentForm({
         date: new Date().toISOString().split('T')[0],
         amount: '',
         method: '',
-        paidAtVisit: false
+        paidAtVisit: false,
+        provider: '',
+        appointmentId: '',
+        procedureId: ''
       })
-      fetchTransactions() // Refresh transactions
+      setAllocations({})
+      setSelectedChargeId('auto')
+      fetchTransactions() 
     } else {
-      alert("Failed to add payment: " + result.error);
+      alert("Failed to process some or all payment allocations.");
     }
   }
 
@@ -162,15 +346,66 @@ export function PatientLedger({ patientId }) {
 
   return (
     <div className="space-y-6">
-      {/* REMOVED: Financial Summary Row (Aging and Balance Cards) */}
-
+      {/* Payment Distribution Table */}
+      <Card className="mb-6 border-blue-100 shadow-sm">
+        <CardContent className="p-0">
+          <div className="bg-slate-50 px-4 py-3 border-b">
+            <h4 className="font-semibold text-slate-700">Payment Distribution</h4>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Total Balance</TableHead>
+                <TableHead>Insurance Portion</TableHead>
+                <TableHead>Patient Portion</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground py-4">
+                    Calculating distribution...
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow className="font-medium">
+                  <TableCell className="text-blue-700 text-lg">
+                    ₱{distribution.totalBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-emerald-600 text-lg">
+                    ₱{distribution.insurancePortion.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-slate-900 text-lg">
+                    ₱{distribution.patientPortion.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-semibold">Transactions</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+          <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => {
+            setIsPaymentDialogOpen(open)
+            if (!open) {
+              setAllocations({})
+              setSelectedChargeId('auto')
+              setPaymentForm({
+                date: new Date().toISOString().split('T')[0],
+                amount: '',
+                method: '',
+                paidAtVisit: false,
+                provider: '',
+                appointmentId: '',
+                procedureId: ''
+              })
+            }
+          }}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-blue-200 text-[#66BAFF] hover:bg-blue-50 bg-transparent">
                 <CreditCard className="w-4 h-4 mr-2" />
@@ -201,7 +436,19 @@ export function PatientLedger({ patientId }) {
                         type="number"
                         step="0.01"
                         value={paymentForm.amount}
-                        onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPaymentForm(prev => ({ ...prev, amount: val }));
+                          
+                          const numVal = parseFloat(val) || 0;
+                          if (selectedChargeId && selectedChargeId !== 'auto') {
+                            // If a specific charge is targeted, dump the whole amount there
+                            setAllocations({ [selectedChargeId]: val });
+                          } else {
+                            // Otherwise, run the waterfall allocation
+                            calculateAutoAllocations(numVal);
+                          }
+                        }}
                       />
                     </div>
                   </div>
@@ -235,6 +482,56 @@ export function PatientLedger({ patientId }) {
                   </div>
                 </div>
 
+                <div className="space-y-2 col-span-2">
+                  <Label>Allocation Method</Label>
+                  <Select
+                    value={selectedChargeId || 'auto'}
+                    onValueChange={(val) => {
+                      setSelectedChargeId(val);
+                      const currentAmt = parseFloat(paymentForm.amount) || 0;
+
+                      if (val === 'auto') {
+                        // Re-run auto allocation
+                        calculateAutoAllocations(currentAmt);
+                        setPaymentForm(prev => ({ ...prev, appointmentId: '', procedureId: '', provider_id: '' }));
+                      } else {
+                        // Single charge allocation
+                        const charge = unpaidCharges.find(t => String(t.id) === String(val));
+                        const amtToUse = paymentForm.amount && parseFloat(paymentForm.amount) > 0
+                          ? paymentForm.amount
+                          : (charge ? String(charge.remainingBalance) : '');
+
+                        setPaymentForm(prev => ({ 
+                          ...prev, 
+                          amount: amtToUse,
+                          appointmentId: charge?.appointmentId || '',
+                          procedureId: charge?.procedureId || '',
+                          provider_id: charge?.providerId || '' 
+                        }));
+
+                        if (amtToUse) {
+                          setAllocations({ [val]: amtToUse });
+                        } else {
+                          setAllocations({});
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an allocation method..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto-allocate (Oldest First)</SelectItem>
+                      {unpaidCharges.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.date} - {t.description} (₱{t.remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Allocation Section presenting updated charge and auto-populated applied column */}
                 <div className="border rounded-lg p-4 mt-2 bg-slate-50">
                   <h4 className="font-medium mb-2 text-sm">Allocation</h4>
                   <Table>
@@ -242,22 +539,45 @@ export function PatientLedger({ patientId }) {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Code</TableHead>
-                        <TableHead>Charge</TableHead>
+                        <TableHead>Updated Charge</TableHead>
                         <TableHead>Applied</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {transactions.filter(t => t.amount > 0).map((t) => (
-                        <TableRow key={t.id}>
+                      {unpaidCharges.map((t) => (
+                        <TableRow 
+                          key={t.id} 
+                          className={String(t.id) === selectedChargeId ? 'bg-blue-50/80 font-medium' : ''}
+                        >
                           <TableCell>{t.date}</TableCell>
                           <TableCell>{t.code}</TableCell>
-                          <TableCell>₱{t.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-slate-900 font-medium">
+                            ₱{t.remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </TableCell>
                           <TableCell>
-                            <Input className="h-8 w-24" placeholder="0.00" type="number" step="0.01" />
+                            <Input
+                              className="h-8 w-28 bg-white"
+                              placeholder="0.00"
+                              type="number"
+                              step="0.01"
+                              value={allocations[t.id] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setAllocations({ [t.id]: val });
+                                setSelectedChargeId(String(t.id));
+                                setPaymentForm(prev => ({
+                                  ...prev,
+                                  amount: val,
+                                  appointmentId: t.appointmentId || '',
+                                  procedureId: t.procedureId || '',
+                                  provider_id: t.providerId || ''
+                                }));
+                              }}
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
-                      {transactions.filter(t => t.amount > 0).length === 0 && (
+                      {unpaidCharges.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-muted-foreground text-sm">
                             No outstanding charges
@@ -278,7 +598,22 @@ export function PatientLedger({ patientId }) {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isProcedureDialogOpen} onOpenChange={setIsProcedureDialogOpen}>
+          <Dialog open={isProcedureDialogOpen} onOpenChange={(open) => {
+            setIsProcedureDialogOpen(open);
+            if (!open) {
+              setProcedureForm({
+                date: new Date().toISOString().split('T')[0],
+                appointmentId: '',
+                procedureId: '',
+                provider: '',
+                code: '',
+                description: '',
+                amount: '',
+                billToInsurance: false
+              });
+              setFeeLookupInfo({ loading: false, source: '', scheduleName: '' });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -301,15 +636,15 @@ export function PatientLedger({ patientId }) {
                 <div className="space-y-2">
                   <Label>Provider <span className="text-red-500">*</span></Label>
                   <Select
-                    value={procedureForm.provider}
-                    onValueChange={(value) => setProcedureForm({ ...procedureForm, provider: value })}
+                    value={procedureForm.provider ? String(procedureForm.provider) : ''}
+                    onValueChange={(value) => setProcedureForm(prev => ({ ...prev, provider: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Provider" />
                     </SelectTrigger>
                     <SelectContent>
                       {providers.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
+                        <SelectItem key={p.id} value={String(p.id)}>
                           {p.name}
                         </SelectItem>
                       ))}
@@ -318,11 +653,39 @@ export function PatientLedger({ patientId }) {
                 </div>
                 <div className="space-y-2">
                   <Label>Procedure Code <span className="text-red-500">*</span></Label>
-                  <Input 
-                    placeholder="Enter code..."
+                  <Select
                     value={procedureForm.code}
-                    onChange={(e) => setProcedureForm({ ...procedureForm, code: e.target.value })}
-                  />
+                    onValueChange={(val) => {
+                      const selected = procedureCodes.find(c => String(c.code) === String(val));
+                      const autoDesc = selected?.description || `Procedure #${val}`;
+                      setProcedureForm({ 
+                        ...procedureForm, 
+                        code: val,
+                        procedureId: val,
+                        appointmentId: selected?.appointmentId || '',
+                        description: autoDesc
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Procedure Code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {procedureCodes.length > 0 ? (
+                        procedureCodes.map((item) => (
+                          <SelectItem key={item.code} value={String(item.code)}>
+                            {item.description && item.description !== String(item.code)
+                              ? `${item.code} - ${item.description}`
+                              : item.code}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="none" disabled>
+                          No procedures found
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -345,13 +708,31 @@ export function PatientLedger({ patientId }) {
                     <span className="absolute left-3 top-2.5 text-muted-foreground">₱</span>
                     <Input 
                       className="pl-7" 
-                      placeholder="0.00"
+                      placeholder={feeLookupInfo.loading ? "Loading fee..." : "0.00"}
                       type="number"
                       step="0.01"
                       value={procedureForm.amount}
-                      onChange={(e) => setProcedureForm({ ...procedureForm, amount: e.target.value })}
+                      onChange={(e) => setProcedureForm(prev => ({ ...prev, amount: e.target.value }))}
                     />
                   </div>
+                  {feeLookupInfo.loading && (
+                    <p className="text-xs text-muted-foreground">Looking up fee schedule rate...</p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'provider_schedule' && (
+                    <p className="text-xs text-blue-600">
+                      Auto-filled from provider&apos;s fee schedule{feeLookupInfo.scheduleName ? ` (${feeLookupInfo.scheduleName})` : ''}.
+                    </p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'standard_schedule' && (
+                    <p className="text-xs text-muted-foreground">
+                      Auto-filled from clinic fee schedule{feeLookupInfo.scheduleName ? ` (${feeLookupInfo.scheduleName})` : ''}.
+                    </p>
+                  )}
+                  {!feeLookupInfo.loading && feeLookupInfo.source === 'none' && procedureForm.provider && procedureForm.code && (
+                    <p className="text-xs text-amber-600">
+                      No rate found in the provider&apos;s fee schedule for this procedure. You can enter the amount manually.
+                    </p>
+                  )}
                 </div>
                 <Button 
                   onClick={handleProcedureSubmit}
@@ -364,7 +745,7 @@ export function PatientLedger({ patientId }) {
           </Dialog>
         </div>
       </div>
-
+                      
       {/* Ledger Table */}
       <Card>
         <CardContent className="p-0">
@@ -399,14 +780,14 @@ export function PatientLedger({ patientId }) {
                       <TableCell>{t.date}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{t.created}</TableCell>
                       
-                      {/* Updated Code Column: Show 'PMT' for payments, otherwise show code */}
+                      {/* Code Column: Show 'PMT' for payments, otherwise show procedure code */}
                       <TableCell className="font-mono text-sm">
                         {t.amount < 0 ? "PMT" : t.code}
                       </TableCell>
                       
-                      {/* Updated Description Column: Show friendly payment name or original description */}
+                      {/* Description Column: Show friendly description */}
                       <TableCell>
-                        {t.amount < 0 ? getPaymentDescription(t.code) : t.description}
+                        {t.amount < 0 ? getPaymentDescription(t) : t.description}
                       </TableCell>
                       
                       <TableCell>{t.provider}</TableCell>
@@ -416,16 +797,7 @@ export function PatientLedger({ patientId }) {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {/* New Total Row */}
-                  <TableRow className="bg-slate-50 border-t-2 border-slate-100 hover:bg-slate-50">
-                    <TableCell colSpan={5} className="text-right font-bold text-slate-700 uppercase text-xs tracking-wider pt-4">
-                      Total Balance
-                    </TableCell>
-                    <TableCell className={`text-right font-bold text-lg pt-4 ${financialData.balance.total < 0 ? "text-green-600" : "text-blue-700"}`}>
-                      {financialData.balance.total < 0 ? "(" : ""}₱{Math.abs(financialData.balance.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                      {financialData.balance.total < 0 ? ")" : ""}
-                    </TableCell>
-                  </TableRow>
+                  
                 </>
               )}
             </TableBody>

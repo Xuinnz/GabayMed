@@ -19,8 +19,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/LogoName.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/Logo.png"
@@ -29,6 +28,23 @@
       "eas": {
         "projectId": "15d1e91e-371e-4937-9d0d-ab38415867f8"
       }
-    }
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow GabayMed to access your location so we can show nearby hospitals and clinics and guide you there."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow GabayMed to access your photos so you can upload medical records and a profile picture.",
+          "cameraPermission": "Allow GabayMed to use your camera so you can photograph paper medical records."
+        }
+      ]
+    ]
   }
 }

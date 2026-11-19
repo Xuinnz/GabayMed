@@ -29,46 +29,83 @@ const API_BASE_URL = 'http://localhost:3000/api';
 
 export const profileAPI = {
 
-  // 1. Get Full Patient Details
-  async getPatientDetails(id) {
-    try {
-      // We join 'patients' with 'profiles' to get all info
-      // Assuming 'patient_id' in patients table is the FK to 'profiles.id'
-      const { data, error } = await supabase
-        .from('patients')
-        .select(`
-          patient_id,
-          date_of_birth,
-          gender,
-          profiles!inner (
-            full_name,
-            email,
-            phone_number,
-            address
-          )
-        `)
-        .eq('patient_id', id)
-        .single();
+  async getPatientDetails(patientId) {
+  try {
+    // 1. Retrieve the patient record
+    const { data: patient, error: patientError } = await supabase
+      .from("patients")
+      .select("patient_id, profile_id, date_of_birth, gender")
+      .eq("patient_id", patientId)
+      .single();
 
-      if (error) throw error;
+    if (patientError) throw patientError;
 
-      // Flatten the structure for the UI
-      return {
-        id: data.patient_id,
-        patientId: data.patient_id,
-        name: data.profiles.full_name,
-        email: data.profiles.email,
-        phone: data.profiles.phone_number,
-        address: data.profiles.address,
-        birthDate: data.date_of_birth,
-        sex: data.gender,
-        age: calculateAge(data.date_of_birth)
-      };
-    } catch (error) {
-      console.error("Get Patient Details Error:", error.message);
-      return null;
+    if (!patient?.profile_id) {
+      throw new Error("Patient profile ID was not found.");
     }
-  },
+
+    // 2. Retrieve the associated profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        first_name,
+        middle_name,
+        last_name,
+        full_name,
+        email,
+        phone_number,
+        address,
+        street_address,
+        barangay,
+        city_municipality,
+        province,
+        zip_code
+      `)
+      .eq("id", patient.profile_id)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const fullName = [
+      profile.first_name,
+      profile.middle_name,
+      profile.last_name
+    ].filter(Boolean).join(" ") || profile.full_name || "Unknown";
+
+    return {
+      // Keep the two IDs separate
+      id: patient.patient_id,
+      patientId: patient.patient_id,
+      profileId: profile.id,
+
+      name: fullName,
+      first_name: profile.first_name,
+      middle_name: profile.middle_name,
+      last_name: profile.last_name,
+      email: profile.email,
+      phone: profile.phone_number,
+
+      // Structured address
+      street_address: profile.street_address || "",
+      barangay: profile.barangay || "",
+      city_municipality: profile.city_municipality || "",
+      province: profile.province || "",
+      zip_code: profile.zip_code || "",
+
+      address: profile.address || "",
+
+      birthDate: patient.date_of_birth,
+      gender: patient.gender,
+      sex: patient.gender,
+      age: calculateAge(patient.date_of_birth)
+    };
+
+  } catch (error) {
+    console.error("Get Patient Details Error:", error);
+    return null;
+  }
+},
 
   // 2. Get Insurance Plans
   async getInsurancePlans(patientId) {
@@ -77,7 +114,7 @@ export const profileAPI = {
       const { data, error } = await supabase
         .from('patient_insurance')
         .select(`
-          id,
+          insurance_id,
           subscriber_id,
           coverage_start_date,
           coverage_end_date,
@@ -95,7 +132,7 @@ export const profileAPI = {
 
       // Transform for UI
       return data.map(item => ({
-        id: item.id,
+        id: item.patient_id,
         carrier: item.insurance_plans?.carrier?.name || 'Unknown Carrier',
         coverageType: item.insurance_plans?.plan_name || 'Unknown Plan',
         subscriberId: item.subscriber_id,
@@ -113,33 +150,83 @@ export const profileAPI = {
   },
 
   // 3. Update Patient Profile
-  async updatePatient(id, updates) {
+  async updatePatient(patientId, updates) {
     try {
-      // Update Profile (Contact Info)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: updates.name,
-          email: updates.email,
-          phone_number: updates.phone,
-          address: updates.address
-        })
-        .eq('id', id);
+
+      //Calculate Age
+      const calculateAge = (dateOfBirth) => {
+        if (!dateOfBirth) return null;
+        const today = new Date();
+        const birthDate = new Date(`${dateOfBirth}T00:00:00`);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDifference = today.getMonth() - birthDate.getMonth();
+        if (monthDifference < 0 ||(monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        return age;
+      };
+
+      const { data: patient, error: fetchError } = await supabase
+        .from("patients")
+        .select("patient_id, profile_id")
+        .eq("patient_id", patientId)
+        .single();
+      if (fetchError) throw fetchError;
+      if (!patient?.profile_id) {
+        throw new Error("Associated profile was not found.");
+      }
+        
+      const address = [ updates.street_address, updates.barangay, updates.city_municipality, updates.province,updates.zip_code]
+        .filter(value => value && value.trim())
+        .join(", ");
+
+      const { data: updatedProfile, error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        first_name: updates.first_name,
+        middle_name: updates.middle_name || null,
+        last_name: updates.last_name,
+        email: updates.email,
+        phone_number: updates.phone,
+        street_address: updates.street_address || null,
+        barangay: updates.barangay || null,
+        city_municipality: updates.city_municipality || null,
+        province: updates.province || null,
+        zip_code: updates.zip_code || null,
+        address: address
+      })
+      .eq("id", patient.profile_id)
+      .select()
+      .single();
 
       if (profileError) throw profileError;
 
-      // Update Patient (Demographics)
-      const { error: patientError } = await supabase
-        .from('patients')
-        .update({
-          date_of_birth: updates.birthDate,
-          gender: updates.sex
-        })
-        .eq('patient_id', id);
+    const age = calculateAge(updates.birthDate);
 
-      if (patientError) throw patientError;
+    const { error: patientError } = await supabase
+      .from("patients")
+      .update({
+      full_name: [
+        updates.first_name,
+        updates.middle_name,
+        updates.last_name
+      ].filter(Boolean).join(" "),
+      first_name: updates.first_name,
+      middle_name: updates.middle_name || null,
+      last_name: updates.last_name,
+      date_of_birth: updates.birthDate,
+      gender: updates.sex,
+      age: age
+      })
+      .eq("patient_id", patientId);
 
-      return { success: true };
+    if (patientError) throw patientError;
+
+    return {
+      success: true,
+      age: age,
+      data: updatedProfile
+    };
     } catch (error) {
       console.error("Update Patient Error:", error.message);
       return { success: false, error: error.message };
@@ -160,7 +247,7 @@ export const profileAPI = {
           code,
           appointments (
             appointment_date,
-            procedures ( name )
+            procedures ( procedure_id )
           )
         `)
         .eq('patient_id', patientId)
@@ -171,7 +258,7 @@ export const profileAPI = {
       return data.map(item => ({
         id: item.ledger_id,
         date: item.created_at,
-        description: item.description || item.appointments?.procedures?.name || 'Medical Service',
+        description: item.description || (item.appointments?.procedures?.procedure_id ? `Procedure #${item.appointments.procedures.procedure_id}` : 'Medical Service'),
         amount: item.amount,
         status: item.payment_status,
         method: item.payment_method
@@ -214,34 +301,86 @@ export const profileAPI = {
   },
 
   // 6. Get Facility/Location Profile
-  async getFacilityProfile() {
-    const facilityId = Session.getFacilityId();
+  async getFacilityProfile(specificFacilityId = null) {
+    let facilityId = specificFacilityId;
+
+    // Check auth user association if not explicitly provided
+    if (!facilityId && typeof window !== 'undefined') {
+      try {
+        const authRaw = localStorage.getItem('gabay_auth');
+        if (authRaw) {
+          const authData = JSON.parse(authRaw);
+          const user = authData.user;
+          const email = user?.email || authData.email;
+
+          if (user?.user_metadata?.facility_id) {
+            facilityId = user.user_metadata.facility_id;
+          } else if (email) {
+            // Check if provider has facility_id
+            const { data: prov } = await supabase
+              .from('providers')
+              .select('facility_id')
+              .eq('email', email)
+              .maybeSingle();
+
+            if (prov?.facility_id) {
+              facilityId = prov.facility_id;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not resolve facility from auth user:", err);
+      }
+    }
+
+    if (!facilityId) {
+      facilityId = Session.getFacilityId();
+    }
+
     if (!facilityId) return null;
 
     try {
       const { data, error } = await supabase
         .from('facilities')
-        .select('name, address, contact_number, email') 
+        .select('facility_id, name, abbreviation, location, contact_num, email, regulatory_id') 
         .eq('facility_id', facilityId)
         .single();
 
       if (error) throw error;
 
-      // Generate a simple abbreviation from the name (e.g., "City Hospital" -> "CH")
-      const abbreviation = data.name 
+      // Generate a simple abbreviation if not set in DB
+      const abbreviation = data.abbreviation || (data.name 
         ? data.name.split(' ').map(w => w[0]).join('').substring(0, 4).toUpperCase() 
-        : 'CLINIC';
+        : 'CLINIC');
 
-      return {
+      const facilityData = {
+        facilityId: data.facility_id,
         clinicName: data.name,
+        name: data.name,
         abbreviation: abbreviation,
-        address: data.address,
-        phone: data.contact_number,
-        email: data.email || 'admin@gabaymed.com', // Fallback if null
-        timezone: 'Asia/Manila' // Default for PH context
+        address: data.location || '',
+        location: data.location || '',
+        phone: data.contact_num || '',
+        email: data.email || 'admin@gabaymed.com',
+        regulatoryId: data.regulatory_id || '',
+        timezone: 'Asia/Manila'
       };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('gabay_facility_data', JSON.stringify(facilityData));
+      }
+
+      return facilityData;
     } catch (error) {
       console.error("Get Facility Profile Error:", error.message);
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('gabay_facility_data');
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch (_) {}
+        }
+      }
       return null;
     }
   }
